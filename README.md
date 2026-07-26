@@ -68,9 +68,9 @@ See the full [feature matrix](docs/FEATURE_MATRIX.md).
 - **Latest confirmed YouTube:** 21.29.3
 - **YTKACE:** 0.6.8
 
-The same injected IPA can be installed with TrollStore, an AppSync-compatible installer, or a developer-certificate sideloader.
+The same injected IPA can be installed with TrollStore, or a developer-certificate sideloader.
 
-YTKACE does not require CydiaSubstrate, MobileSubstrate, Cephei, libhooker, or ElleKit.
+
 
 ## Installation
 
