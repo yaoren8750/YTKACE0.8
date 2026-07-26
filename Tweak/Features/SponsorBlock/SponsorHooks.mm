@@ -3,6 +3,8 @@
 #import "../../YTKACE.h"
 #import "../../Runtime/Hooking.h"
 #import "../../Runtime/Preferences.h"
+#import "../../Runtime/Localization.h"
+#import "../Downloads/DownloadLog.h"
 
 #import <QuartzCore/QuartzCore.h>
 #import <AudioToolbox/AudioToolbox.h>
@@ -15,6 +17,7 @@ static IMP OriginalDidActivateVideo;
 static IMP OriginalSingleVideoTimeChanged;
 static IMP OriginalMutatedVideoTimeChanged;
 static IMP OriginalPlayerBarLayout;
+static IMP OriginalMiniplayerBarLayout;
 
 static const void *YTKACESponsorSegmentsAssociation = &YTKACESponsorSegmentsAssociation;
 static const void *YTKACESponsorVideoAssociation = &YTKACESponsorVideoAssociation;
@@ -147,7 +150,7 @@ static void YTKACEShowSponsorSkippedHUD(id controller, double start, NSString *c
         label.textColor = UIColor.whiteColor;
         label.font = [UIFont systemFontOfSize:14.0 weight:UIFontWeightSemibold];
         UIButton *undo = [UIButton buttonWithType:UIButtonTypeSystem];
-        [undo setTitle:@"Unskip" forState:UIControlStateNormal];
+        [undo setTitle:YTKACELocalized(@"Unskip") forState:UIControlStateNormal];
         [undo setTitleColor:UIColor.systemBlueColor forState:UIControlStateNormal];
         undo.titleLabel.font = [UIFont systemFontOfSize:14.0 weight:UIFontWeightSemibold];
         [undo addTarget:target action:@selector(unskip)
@@ -241,7 +244,7 @@ static void YTKACEAskToSkipSponsor(id controller, double start, double end,
         label.textColor = UIColor.whiteColor;
         label.font = [UIFont systemFontOfSize:14.0 weight:UIFontWeightSemibold];
         UIButton *skip = [UIButton buttonWithType:UIButtonTypeSystem];
-        [skip setTitle:@"Skip" forState:UIControlStateNormal];
+        [skip setTitle:YTKACELocalized(@"Skip") forState:UIControlStateNormal];
         [skip setTitleColor:UIColor.systemBlueColor forState:UIControlStateNormal];
         skip.titleLabel.font = [UIFont systemFontOfSize:14.0 weight:UIFontWeightSemibold];
         [skip addTarget:target action:@selector(skip)
@@ -304,7 +307,7 @@ static void YTKACEEvaluateSponsorTime(id controller, double time) {
             NSString *category = [segment[@"category"] isKindOfClass:NSString.class]
                 ? segment[@"category"] : @"sponsor";
             NSInteger behavior = YTKACESponsorCategoryBehavior(category);
-            if (behavior == 2) return;
+            if (behavior == 2 || behavior == 3) return;
             NSNumber *token = @(index);
             if (time < start - 1.0) {
                 [skipped removeObject:token];
@@ -418,20 +421,8 @@ static void YTKACEMutatedVideoTimeChanged(id receiver,
         userInfo:@{@"time": @(resolved)}];
 }
 
-static void YTKACEPlayerBarLayout(UIView *receiver, SEL selector) {
-    if (OriginalPlayerBarLayout != NULL) {
-        ((void (*)(id, SEL))OriginalPlayerBarLayout)(receiver, selector);
-    }
-
-    [YTKACESponsorBars addObject:receiver];
-    UIView *target = receiver;
-    for (UIView *subview in receiver.subviews) {
-        if ([NSStringFromClass(subview.class) isEqualToString:@"YTModularPlayerBarView"]) {
-            target = subview;
-            break;
-        }
-    }
-
+static void YTKACERenderSponsorMarkers(UIView *receiver, UIView *target,
+                                       BOOL fullHeight) {
     CAShapeLayer *container =
         objc_getAssociatedObject(receiver, YTKACESponsorMarkerAssociation);
     if (container == nil) {
@@ -506,12 +497,38 @@ static void YTKACEPlayerBarLayout(UIView *receiver, SEL selector) {
         CALayer *marker = container.sublayers[index];
         marker.hidden = end <= start;
         if (marker.hidden) return;
+        CGFloat markerHeight = fullHeight ? MAX(height, 1.0) : 2.0;
         marker.frame = CGRectMake((CGFloat)(start / duration) * width,
-                                  MAX(0.0, height - 2.0),
+                                  fullHeight ? 0.0 : MAX(0.0, height - 2.0),
                                   MAX(1.0, (CGFloat)((end - start) / duration) * width),
-                                  2.0);
+                                  markerHeight);
     }];
     [CATransaction commit];
+}
+
+static void YTKACEPlayerBarLayout(UIView *receiver, SEL selector) {
+    if (OriginalPlayerBarLayout != NULL) {
+        ((void (*)(id, SEL))OriginalPlayerBarLayout)(receiver, selector);
+    }
+
+    [YTKACESponsorBars addObject:receiver];
+    UIView *target = receiver;
+    for (UIView *subview in receiver.subviews) {
+        if ([NSStringFromClass(subview.class) isEqualToString:@"YTModularPlayerBarView"]) {
+            target = subview;
+            break;
+        }
+    }
+    YTKACERenderSponsorMarkers(receiver, target, NO);
+}
+
+static void YTKACEMiniplayerBarLayout(UIView *receiver, SEL selector) {
+    if (OriginalMiniplayerBarLayout != NULL) {
+        ((void (*)(id, SEL))OriginalMiniplayerBarLayout)(receiver, selector);
+    }
+    [YTKACESponsorBars addObject:receiver];
+    YTKACEApplyProgressStyleToBar(receiver);
+    YTKACERenderSponsorMarkers(receiver, receiver, YES);
 }
 
 void YTKACEInstallSponsorBlockHooks(void) {
@@ -534,4 +551,8 @@ void YTKACEInstallSponsorBlockHooks(void) {
                               @"layoutSubviews",
                               (IMP)YTKACEPlayerBarLayout,
                               &OriginalPlayerBarLayout);
+    YTKACEInstallInstanceHook(@"YTWatchFloatingMiniplayerProgressBarView",
+                              @"layoutSubviews",
+                              (IMP)YTKACEMiniplayerBarLayout,
+                              &OriginalMiniplayerBarLayout);
 }

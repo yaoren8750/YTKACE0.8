@@ -7,6 +7,7 @@
 #import <objc/message.h>
 #import <objc/runtime.h>
 #import <stdlib.h>
+#import "../Downloads/DownloadLog.h"
 
 static NSString * const YTKACEFixPlaybackKey = @"kEnablefixvideoplayback";
 static NSString * const kNeedsRefetch = @"YTKPlusNeedsRefetch";
@@ -14,6 +15,98 @@ static NSString * const kScrubBegan  = @"YTKPlusScrubBegan";
 
 static BOOL FixOn(void) {
     return YTKACEFeatureEnabled(YTKACEFixPlaybackKey);
+}
+
+static __weak id gCurrentController = nil;
+static BOOL gIsRefetching = NO;
+static NSTimeInterval gLastRefetchAt = 0.0;
+
+static NSTimeInterval FPNow(void) { return CFAbsoluteTimeGetCurrent(); }
+
+static NSTimeInterval gSessionStart = 0.0;
+static NSTimeInterval gLoadedAt     = 0.0;
+static NSTimeInterval gLastFailAt   = 0.0;
+
+static void FPLog(NSString *format, ...) NS_FORMAT_FUNCTION(1, 2);
+static void FPLog(NSString *format, ...) {
+    va_list args;
+    va_start(args, format);
+    NSString *message = [[NSString alloc] initWithFormat:format arguments:args];
+    va_end(args);
+    double t = gSessionStart > 0.0 ? (FPNow() - gSessionStart) : -1.0;
+    YTKACEDownloadLog(@"fixplay", @"t=%8.2f  %@", t, message);
+}
+
+static long gcState8, gcErrOverlay, gcExpiry, gcPlayability, gcHeartbeat, gcStall;
+
+static void FPFlushCounters(BOOL force) {
+    static NSTimeInterval last = 0.0;
+    NSTimeInterval now = FPNow();
+    if (!force && now - last < 5.0) return;
+    last = now;
+    long a = gcState8, b = gcErrOverlay, c = gcExpiry,
+         d = gcPlayability, e = gcHeartbeat, f = gcStall;
+    if ((a | b | c | d | e | f) == 0) return;
+    gcState8 = gcErrOverlay = gcExpiry = gcPlayability = gcHeartbeat = gcStall = 0;
+    FPLog(@"counters state8=%ld errOverlay=%ld expiryQ=%ld playabilityQ=%ld heartbeat=%ld stall=%ld",
+          a, b, c, d, e, f);
+}
+
+static BOOL InRecoveryWindow(void) {
+    if (gIsRefetching) return YES;
+    NSTimeInterval now = FPNow();
+    if (gLoadedAt   > 0.0 && now - gLoadedAt   <  6.0) return YES;
+    if (gLastFailAt > 0.0 && now - gLastFailAt < 15.0) return YES;
+    return NO;
+}
+
+static void NoteFailure(NSString *why) {
+    gLastFailAt = FPNow();
+    FPLog(@"failure noted: %@", why);
+}
+
+static long gRefetchStreak = 0;
+static NSTimeInterval gBackoffUntil = 0.0;
+static NSTimeInterval gBurstStart = 0.0;
+static long gBurstCount = 0;
+static long gTotalItemFails = 0;
+static long gRawMediaState = -1;
+static BOOL gReloadPending = NO;
+
+static void RequestRefetch(NSString *reason) {
+    NSTimeInterval now = FPNow();
+    if (gIsRefetching) {
+        FPLog(@"refetch request ignored (already refetching) reason=%@", reason);
+        return;
+    }
+    if (now < gBackoffUntil) {
+        FPLog(@"refetch suppressed by backoff (%.0fs left) reason=%@",
+              gBackoffUntil - now, reason);
+        return;
+    }
+    if (gLastRefetchAt > 0.0 && now - gLastRefetchAt < 15.0) {
+        gRefetchStreak++;
+    } else {
+        gRefetchStreak = 1;
+    }
+    if (gRefetchStreak > 3) {
+        gBackoffUntil = now + 90.0;
+        gRefetchStreak = 0;
+        FPLog(@"refetch NOT helping (4 within 15s each) -- backing off 90s, reason=%@", reason);
+        return;
+    }
+    NSTimeInterval since = now - gLastRefetchAt;
+    if (gLastRefetchAt > 0.0 && since < 8.0) {
+        FPLog(@"refetch request throttled (%.1fs since last, need 8s) reason=%@", since, reason);
+        return;
+    }
+    if (gLastRefetchAt > 0.0 && since < 20.0) {
+        gLastRefetchAt = now - 20.0;
+    }
+    FPLog(@"refetch requested reason=%@ (%.1fs since last)", reason, since);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [[NSNotificationCenter defaultCenter] postNotificationName:kNeedsRefetch object:nil];
+    });
 }
 
 static IMP OrigIosguardEnable, OrigHasIosguardEnable;
@@ -62,10 +155,6 @@ static IMP OrigMLTimeToExpiry, OrigYTIExpiresIn;
 
 static IMP OrigCacheKeyRelax, OrigStreamingWatchEnabled, OrigPlayerRespCacheToken;
 
-static __weak id gCurrentController = nil;
-static BOOL gIsRefetching = NO;
-static NSTimeInterval gLastRefetchAt = 0.0;
-static NSMutableDictionary<NSValue *, NSTimer *> *gTimersByController = nil;
 
 static BOOL CallBool(IMP fn, id r, SEL s) {
     return fn && ((BOOL (*)(id, SEL))fn)(r, s);
@@ -114,10 +203,13 @@ static BOOL H_HasStopHeartbeat(id r, SEL s)  { return FixOn() ? NO  : CallBool(O
 static BOOL H_AuthMismatch(id r, SEL s)      { return FixOn() ? NO  : CallBool(OrigAuthMismatch, r, s); }
 static BOOL H_HasAuthMismatch(id r, SEL s)   { return FixOn() ? NO  : CallBool(OrigHasAuthMismatch, r, s); }
 static BOOL H_HasPlayabilityStatus(id r, SEL s) { return FixOn() ? NO : CallBool(OrigHasPlayabilityStatus, r, s); }
-static id   H_PlayabilityStatus(id r, SEL s) { return FixOn() ? nil : CallObj(OrigPlayabilityStatus, r, s); }
+static id   H_PlayabilityStatus(id r, SEL s) {
+    if (FixOn()) { gcPlayability++; FPFlushCounters(NO); return nil; }
+    return CallObj(OrigPlayabilityStatus, r, s);
+}
 
 static void H_HaltIfNeeded(id r, SEL s) {
-    if (FixOn()) return;
+    if (FixOn()) { gcHeartbeat++; FPFlushCounters(NO); return; }
     if (OrigHaltIfNeeded) ((void (*)(id, SEL))OrigHaltIfNeeded)(r, s);
 }
 static void H_TransitionIfNeeded(id r, SEL s) {
@@ -129,7 +221,7 @@ static void H_HandleHBResp(id r, SEL s, id resp, id req) {
     if (OrigHandleHBResp) ((void (*)(id, SEL, id, id))OrigHandleHBResp)(r, s, resp, req);
 }
 static void H_HaltPlaybackWithError(id r, SEL s, id err, id ctl) {
-    if (FixOn()) return;
+    if (FixOn()) { gcHeartbeat++; NoteFailure(@"haltPlaybackWithError"); return; }
     if (OrigHaltPlaybackWithError) ((void (*)(id, SEL, id, id))OrigHaltPlaybackWithError)(r, s, err, ctl);
 }
 
@@ -150,11 +242,11 @@ static void H_CannotPlayStatus(id r, SEL s, id st) {
 }
 
 static void H_ShowErrLong(id r, SEL s, id reason, id sub, id learn, BOOL a, BOOL b, BOOL c) {
-    if (FixOn()) return;
+    if (FixOn()) { gcErrOverlay++; NoteFailure(@"errorOverlay"); return; }
     if (OrigShowErrLong) ((void (*)(id, SEL, id, id, id, BOOL, BOOL, BOOL))OrigShowErrLong)(r, s, reason, sub, learn, a, b, c);
 }
 static void H_ShowErrMsg(id r, SEL s, id msg, BOOL a, BOOL b, BOOL c) {
-    if (FixOn()) return;
+    if (FixOn()) { gcErrOverlay++; NoteFailure(@"errorOverlayMessage"); return; }
     if (OrigShowErrMsg) ((void (*)(id, SEL, id, BOOL, BOOL, BOOL))OrigShowErrMsg)(r, s, msg, a, b, c);
 }
 static void H_UpdateErrState(id r, SEL s, BOOL a, BOOL b, BOOL c) {
@@ -183,7 +275,7 @@ static void H_StallReset(id r, SEL s, id vc, long st) {
     if (OrigStallReset) ((void (*)(id, SEL, id, long))OrigStallReset)(r, s, vc, st);
 }
 static void H_StallStartBuf(id r, SEL s, double thresh, long reason) {
-    if (FixOn()) return;
+    if (FixOn()) { gcStall++; FPFlushCounters(NO); return; }
     if (OrigStallStartBuf) ((void (*)(id, SEL, double, long))OrigStallStartBuf)(r, s, thresh, reason);
 }
 static id H_StallInit(id r, SEL s, id player, double join, double buf) {
@@ -216,7 +308,7 @@ static id H_MLEvInit3(id r, SEL s, long st, long prev, double t, id ann, long st
 }
 
 static void H_MLPlayerItemSetState(id r, SEL s, long st) {
-    if (FixOn() && st == 8) return;
+    if (FixOn() && st == 8) { gcState8++; FPFlushCounters(NO); return; }
     if (OrigMLPlayerItemSetState) ((void (*)(id, SEL, long))OrigMLPlayerItemSetState)(r, s, st);
 }
 static void H_HAMPlayerSetState(id r, SEL s, long st) {
@@ -228,7 +320,7 @@ static void H_AVPlayerSetState(id r, SEL s, long st) {
     if (OrigAVPlayerSetState) ((void (*)(id, SEL, long))OrigAVPlayerSetState)(r, s, st);
 }
 static void H_AVPlayerFail(id r, SEL s, id err) {
-    if (FixOn()) return;
+    if (FixOn()) { NoteFailure(@"MLAVPlayer.failWithError"); return; }
     if (OrigAVPlayerFail) ((void (*)(id, SEL, id))OrigAVPlayerFail)(r, s, err);
 }
 static void H_AVPlayerSyncFail(id r, SEL s, id err, id fid, BOOL retry) {
@@ -256,12 +348,42 @@ static void H_HAMQPPlayerItemFail(id r, SEL s, id item, NSError *err) {
     if (FixOn()) {
         NSInteger code = 0;
         @try { code = err.code; } @catch (__unused id e) {}
+        FPLog(@"MLHAMQueuePlayer playerItem:didFailWithError: code=%ld", (long)code);
         if (code == 0x77 || code == 0x193) {
-            if (!gIsRefetching) {
-                gLastRefetchAt = 0.0;
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    [[NSNotificationCenter defaultCenter] postNotificationName:kNeedsRefetch object:nil];
+            NSString *reason = [NSString stringWithFormat:@"itemFail(%ld)", (long)code];
+            NoteFailure(reason);
+            NSTimeInterval failedAt = FPNow();
+            if (failedAt - gBurstStart > 2.0) {
+                gBurstStart = failedAt;
+                gBurstCount = 0;
+            }
+            gBurstCount++;
+            gTotalItemFails++;
+            if (gBurstCount >= 3) {
+                gBurstCount = 0;
+                gBurstStart = 0.0;
+                if (gReloadPending) return;
+                gReloadPending = YES;
+                long failsAtBurst = gTotalItemFails;
+                FPLog(@"itemFail(%ld) burst -- probing 2s before reload", (long)code);
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                                             (int64_t)(2.0 * NSEC_PER_SEC)),
+                               dispatch_get_main_queue(), ^{
+                    gReloadPending = NO;
+                    long since = gTotalItemFails - failsAtBurst;
+                    BOOL playing = (gRawMediaState == 3);
+                    if (since == 0 && playing) {
+                        FPLog(@"recovered on its own (no new failures, state=3) "
+                              @"-- reload skipped");
+                        return;
+                    }
+                    FPLog(@"still broken after 2s (%ld new failures, state=%ld) "
+                          @"-- reloading", since, gRawMediaState);
+                    RequestRefetch([reason stringByAppendingString:@"-burst"]);
                 });
+            } else {
+                FPLog(@"itemFail(%ld) swallowed (isolated, %ld in window)",
+                      (long)code, gBurstCount);
             }
             return;
         }
@@ -287,7 +409,11 @@ static void H_SVFail(id r, SEL s, id err) {
 
 static void H_LPCRawMedia(id self, SEL sel, id sv, long from, long to, BOOL mp) {
     if (OrigLPCRawMedia) ((void (*)(id, SEL, id, long, long, BOOL))OrigLPCRawMedia)(self, sel, sv, from, to, mp);
-    if (FixOn() && to == 6) {
+    if (!FixOn()) return;
+    gRawMediaState = to;
+    FPLog(@"rawMediaState %ld -> %ld", from, to);
+    if (to == 6) {
+        FPLog(@"  stalled; scheduling 8s re-check");
         __weak id weakSelf = self;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(8.0 * NSEC_PER_SEC)),
                        dispatch_get_main_queue(), ^{
@@ -302,10 +428,10 @@ static void H_LPCRawMedia(id self, SEL sel, id sv, long from, long to, BOOL mp) 
             if ([active respondsToSelector:rmsSel]) {
                 rms = ((long (*)(id, SEL))objc_msgSend)(active, rmsSel);
             }
+            FPLog(@"stall re-check after 8s: rawMediaState=%ld", rms);
             if (rms == 6) {
-                gLastRefetchAt = 0.0;
-                gIsRefetching = NO;
-                [[NSNotificationCenter defaultCenter] postNotificationName:kNeedsRefetch object:nil];
+                NoteFailure(@"stalled8s");
+                RequestRefetch(@"stalled8s");
             }
         });
     }
@@ -318,8 +444,19 @@ static void FinishLPCLoad(id self) {
     if (!FixOn()) return;
     gLastRefetchAt = 0.0;
     gIsRefetching = NO;
+    gLastFailAt = 0.0;
+    gRefetchStreak = 0;
+    gBackoffUntil = 0.0;
+    gBurstStart = 0.0;
+    gBurstCount = 0;
+    gTotalItemFails = 0;
+    gReloadPending = NO;
+    gLoadedAt = FPNow();
+    if (gSessionStart <= 0.0) gSessionStart = gLoadedAt;
     gCurrentController = self;
     H_YTKPRegisterNotifications(self, NULL);
+    FPFlushCounters(YES);
+    FPLog(@"---- loadWithPlayerTransition: new playback session ----");
 }
 
 static void H_LPCLoadTransObject(id self, SEL sel, id trans, id cfg, id initialTime) {
@@ -379,8 +516,11 @@ static void InstallLPCLoadTransitionHook(void) {
 static void H_LPCInitPlayback(id self, SEL sel) {
     if (OrigLPCInitPlayback) ((void (*)(id, SEL))OrigLPCInitPlayback)(self, sel);
     if (!FixOn()) return;
+    if (gSessionStart <= 0.0) gSessionStart = FPNow();
+    gLoadedAt = FPNow();
     gCurrentController = self;
     H_YTKPRegisterNotifications(self, NULL);
+    FPLog(@"initializePlayback");
 }
 
 static void H_YTKPRegisterNotifications(id self, SEL _cmd) {
@@ -399,20 +539,54 @@ static void H_YTKPStartProactiveTimer(id self, SEL _cmd) {
     (void)_cmd;
 }
 
+static UIView *YTKACESearchPlayerSurface(UIView *view, NSUInteger depth) {
+    if (view == nil || depth > 12) return nil;
+    NSString *name = NSStringFromClass(view.class);
+    BOOL candidate = [name containsString:@"PlayerRenderingView"] ||
+        [name isEqualToString:@"YTPlayerView"] ||
+        [name containsString:@"MLVideoView"] ||
+        [name containsString:@"YTPlayerOverlayView"];
+    if (candidate && CGRectGetWidth(view.bounds) > 40.0 &&
+        CGRectGetHeight(view.bounds) > 40.0) {
+        return view;
+    }
+    for (UIView *subview in view.subviews) {
+        UIView *found = YTKACESearchPlayerSurface(subview, depth + 1);
+        if (found != nil) return found;
+    }
+    return nil;
+}
+
+static UIView *YTKACEFindPlayerSurface(void) {
+    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+        if (![scene isKindOfClass:UIWindowScene.class]) continue;
+        for (UIWindow *window in ((UIWindowScene *)scene).windows) {
+            if (window.isHidden || window.alpha < 0.05) continue;
+            UIView *found = YTKACESearchPlayerSurface(window, 0);
+            if (found != nil) return found;
+        }
+    }
+    return nil;
+}
+
 static void H_YTKPHandleRefetch(id self, SEL _cmd, NSNotification *note) {
     (void)_cmd; (void)note;
-    if (self != gCurrentController) return;
-    if (gIsRefetching) return;
-    NSTimeInterval now = [[NSDate date] timeIntervalSince1970];
-    if (now - gLastRefetchAt < 20.0) return;
+    if (self != gCurrentController) { FPLog(@"refetch skipped: not current controller"); return; }
+    if (gIsRefetching) { FPLog(@"refetch skipped: already in flight"); return; }
+    NSTimeInterval now = FPNow();
+    if (gLastRefetchAt > 0.0 && now - gLastRefetchAt < 20.0) {
+        FPLog(@"refetch skipped: rate limited (%.1fs of 20s)", now - gLastRefetchAt);
+        return;
+    }
 
     id seq = [self valueForKey:@"videoSequencer"];
     id active = [seq valueForKey:@"activeVideoController"];
     if (!active) active = [seq valueForKey:@"contentVideoController"];
-    if (!active) return;
+    if (!active) { FPLog(@"refetch aborted: no active video controller"); return; }
 
     gIsRefetching = YES;
     gLastRefetchAt = now;
+    FPLog(@"REFETCH START -- player reload begins (expect A/V hitch here)");
 
     __weak id weakSelf = self;
     __weak id weakActive = active;
@@ -422,19 +596,28 @@ static void H_YTKPHandleRefetch(id self, SEL _cmd, NSNotification *note) {
         id activeStrong = weakActive;
         if (!strong || !activeStrong) { gIsRefetching = NO; return; }
 
-        UIView *snapshot = nil;
+        UIView *source = nil;
         SEL prvSel = NSSelectorFromString(@"playerRenderingView");
         if ([activeStrong respondsToSelector:prvSel]) {
-            UIView *v = ((id (*)(id, SEL))objc_msgSend)(activeStrong, prvSel);
-            if (v && v.superview) {
-                snapshot = [v snapshotViewAfterScreenUpdates:NO];
-                if (snapshot) {
-                    snapshot.frame = v.frame;
-                    [v.superview addSubview:snapshot];
-                    [v.superview bringSubviewToFront:snapshot];
-                }
+            source = ((id (*)(id, SEL))objc_msgSend)(activeStrong, prvSel);
+        }
+        if (source == nil || source.superview == nil) {
+            source = YTKACEFindPlayerSurface();
+        }
+        UIView *snapshot = nil;
+        if (source != nil && source.superview != nil &&
+            CGRectGetWidth(source.bounds) > 40.0 &&
+            CGRectGetHeight(source.bounds) > 40.0) {
+            snapshot = [source snapshotViewAfterScreenUpdates:NO];
+            if (snapshot != nil) {
+                snapshot.frame = source.frame;
+                [source.superview addSubview:snapshot];
+                [source.superview bringSubviewToFront:snapshot];
             }
         }
+        FPLog(@"reload mask: source=%@ snapshot=%d",
+              source == nil ? @"none" : NSStringFromClass(source.class),
+              snapshot != nil);
 
         Class RCtx = NSClassFromString(@"MLPlayerReloadContext");
         id ctx = nil;
@@ -450,11 +633,16 @@ static void H_YTKPHandleRefetch(id self, SEL _cmd, NSNotification *note) {
         SEL reloadPlayerSel = NSSelectorFromString(@"reloadPlayerWithContext:");
         SEL fetchSel = NSSelectorFromString(@"fetchPlayerDataAndResolveVideo");
         if ([strong respondsToSelector:reqReloadSel]) {
+            FPLog(@"reload path: singleVideoController:requiresReloadWithContext: (snapshot=%d)", snapshot != nil);
             ((void (*)(id, SEL, id, id))objc_msgSend)(strong, reqReloadSel, activeStrong, ctx);
         } else if ([activeStrong respondsToSelector:reloadPlayerSel]) {
+            FPLog(@"reload path: reloadPlayerWithContext: (snapshot=%d)", snapshot != nil);
             ((void (*)(id, SEL, id))objc_msgSend)(activeStrong, reloadPlayerSel, ctx);
         } else if ([strong respondsToSelector:fetchSel]) {
+            FPLog(@"reload path: fetchPlayerDataAndResolveVideo (snapshot=%d)", snapshot != nil);
             ((void (*)(id, SEL))objc_msgSend)(strong, fetchSel);
+        } else {
+            FPLog(@"reload path: NONE AVAILABLE");
         }
 
         if (snapshot) {
@@ -486,6 +674,7 @@ static void H_YTKPHandleRefetch(id self, SEL _cmd, NSNotification *note) {
 static void H_YTKPHandleScrubBegan(id self, SEL _cmd, NSNotification *note) {
     (void)_cmd; (void)note;
     if (self != gCurrentController) return;
+    FPLog(@"scrub began -> pause");
     SEL pauseSel = NSSelectorFromString(@"pauseWithStoppageReason:");
     if ([self respondsToSelector:pauseSel]) {
         ((void (*)(id, SEL, long))objc_msgSend)(self, pauseSel, 0);
@@ -532,10 +721,16 @@ static BOOL H_HasErrorCode(id r, SEL s)            { return FixOn() ? NO  : Call
 static BOOL H_HasErrorScreen(id r, SEL s)          { return FixOn() ? NO  : CallBool(OrigHasErrorScreen, r, s); }
 static id   H_ErrorScreen(id r, SEL s)             { return FixOn() ? nil : CallObj(OrigErrorScreen, r, s); }
 
-static BOOL H_IsExpiredByMaxAge(id r, SEL s)       { return FixOn() ? YES : CallBool(OrigIsExpiredByMaxAge, r, s); }
-static BOOL H_StreamsCloseExpiring(id r, SEL s)    { return FixOn() ? YES : CallBool(OrigStreamsCloseExpiring, r, s); }
-static long H_TimeUntilExpiry(id r, SEL s)         { return FixOn() ? 0   : CallLong(OrigTimeUntilExpiry, r, s); }
-static BOOL H_IsReuse(id r, SEL s)                 { return FixOn() ? NO  : CallBool(OrigIsReuse, r, s); }
+static BOOL ForceStale(void) {
+    gcExpiry++;
+    FPFlushCounters(NO);
+    return FixOn() && InRecoveryWindow();
+}
+
+static BOOL H_IsExpiredByMaxAge(id r, SEL s)    { return ForceStale() ? YES : CallBool(OrigIsExpiredByMaxAge, r, s); }
+static BOOL H_StreamsCloseExpiring(id r, SEL s) { return ForceStale() ? YES : CallBool(OrigStreamsCloseExpiring, r, s); }
+static long H_TimeUntilExpiry(id r, SEL s)      { return ForceStale() ? 0   : CallLong(OrigTimeUntilExpiry, r, s); }
+static BOOL H_IsReuse(id r, SEL s)              { return ForceStale() ? NO  : CallBool(OrigIsReuse, r, s); }
 
 static double H_MLTimeToExpiry(id r, SEL s) {
     double v = CallDouble(OrigMLTimeToExpiry, r, s);
@@ -674,5 +869,8 @@ void YTKACEInstallFixPlaybackHooks(void) {
     InstallBool(@"YTPlaybackRequest", @"enablePlayerResponseCacheKeyRelaxation", (IMP)H_CacheKeyRelax,          &OrigCacheKeyRelax);
     InstallBool(@"YTPlaybackRequest", @"streamingWatchEnabled",                  (IMP)H_StreamingWatchEnabled,  &OrigStreamingWatchEnabled);
     InstallObj (@"YTPlaybackRequest", @"playerResponseCacheToken",               (IMP)H_PlayerRespCacheToken,   &OrigPlayerRespCacheToken);
+
+    gSessionStart = FPNow();
+    FPLog(@"installed: hooks=%lu", (unsigned long)YTKACEInstalledHookCount());
 
 }

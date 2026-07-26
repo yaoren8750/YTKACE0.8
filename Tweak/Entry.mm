@@ -26,6 +26,7 @@ static void YTKACEInstallModules(void) {
     YTKACEInstallGlobalDownloadMiniPlayer();
     YTKACEInstallDoubleTapHooks();
     YTKACEInstallFixPlaybackHooks();
+    YTKACEInstallProgressBarHooks();
     YTKACEInstallStreamingHooks();
     YTKACEInstallShortsHooks();
     YTKACEInstallTabBarHooks();

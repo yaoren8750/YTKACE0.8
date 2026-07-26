@@ -9,6 +9,7 @@ YTKACE_FILES = \
 	Tweak/Entry.mm \
 	Tweak/Runtime/Hooking.mm \
 	Tweak/Runtime/Preferences.mm \
+	Tweak/Runtime/Localization.mm \
 	Tweak/UI/Assets.mm \
 	Tweak/UI/Notice.mm \
 	Tweak/UI/OverlayButtonHost.mm \
@@ -38,6 +39,7 @@ YTKACE_FILES = \
 	Tweak/Features/Playback/LoopControls.mm \
 	Tweak/Features/Playback/DoubleTapHooks.mm \
 	Tweak/Features/Playback/FixPlaybackHooks.mm \
+	Tweak/Features/Playback/ProgressBarStyle.mm \
 	Tweak/Features/Streaming/StreamingHooks.mm \
 	Tweak/Features/Shorts/ShortsHooks.mm \
 	Tweak/Features/Compatibility/SideloadCompatibility.mm \

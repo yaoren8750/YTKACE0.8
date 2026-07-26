@@ -3,6 +3,7 @@
 #import "MediaArtwork.h"
 #import "../../Settings/YTKACESettingsPages.h"
 #import "../../Runtime/Preferences.h"
+#import "../../Runtime/Localization.h"
 
 #import <AVFoundation/AVFoundation.h>
 
@@ -254,12 +255,12 @@ static NSString *YTKACEAudioTime(NSTimeInterval value) {
     [header addTarget:self action:@selector(toggleQueue)
         forControlEvents:UIControlEventTouchUpInside];
     UILabel *handle = [UILabel new];
-    handle.text = @"━";
+    handle.text = YTKACELocalized(@"━");
     handle.textColor = UIColor.tertiaryLabelColor;
     handle.font = [UIFont systemFontOfSize:19.0 weight:UIFontWeightBold];
     handle.textAlignment = NSTextAlignmentCenter;
     UILabel *queueTitle = [UILabel new];
-    queueTitle.text = @"Your Queue";
+    queueTitle.text = YTKACELocalized(@"Your Queue");
     queueTitle.textColor = UIColor.secondaryLabelColor;
     queueTitle.font = [UIFont systemFontOfSize:11.0 weight:UIFontWeightMedium];
     queueTitle.textAlignment = NSTextAlignmentCenter;
@@ -373,7 +374,7 @@ static NSString *YTKACEAudioTime(NSTimeInterval value) {
     self.optionsCard.translatesAutoresizingMaskIntoConstraints = NO;
     [self.optionsView addSubview:self.optionsCard];
     UILabel *handle = [UILabel new];
-    handle.text = @"━";
+    handle.text = YTKACELocalized(@"━");
     handle.textColor = UIColor.tertiaryLabelColor;
     handle.textAlignment = NSTextAlignmentCenter;
     handle.translatesAutoresizingMaskIntoConstraints = NO;
@@ -442,12 +443,12 @@ static NSString *YTKACEAudioTime(NSTimeInterval value) {
     self.speedDetail.text = [NSString stringWithFormat:@"· %.2gx",
         self.session.playbackRate];
     if (self.session.pauseAtEnd) {
-        self.sleepDetail.text = @"· End of track";
+        self.sleepDetail.text = YTKACELocalized(@"· End of track");
     } else if (self.sleepTimer.isValid) {
         self.sleepDetail.text = [NSString stringWithFormat:@"· %ldm",
             (long)self.sleepMinutes];
     } else {
-        self.sleepDetail.text = @"· Off";
+        self.sleepDetail.text = YTKACELocalized(@"· Off");
     }
     self.autoplayDetail.text = self.session.autoplayEnabled ? @"· On" : @"· Off";
     [self.queueTable reloadData];

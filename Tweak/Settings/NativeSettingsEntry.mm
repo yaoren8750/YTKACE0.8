@@ -1,4 +1,5 @@
 #import "YTKACESettingsPages.h"
+#import "YTKACERootOptionsController.h"
 #import "YTKACEDownloadsController.h"
 #import "../Runtime/Hooking.h"
 

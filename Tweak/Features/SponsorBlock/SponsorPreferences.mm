@@ -38,7 +38,7 @@ static NSDictionary<NSString *, NSString *> *YTKACESponsorDefinition(NSString *c
 NSInteger YTKACESponsorCategoryBehavior(NSString *category) {
     id stored = YTKACEPreferenceObject(YTKACESponsorBehaviorKey(category));
     if ([stored respondsToSelector:@selector(integerValue)]) {
-        return MAX(0, MIN([stored integerValue], 2));
+        return MAX(0, MIN([stored integerValue], 3));
     }
     if ([category isEqualToString:@"sponsor"]) {
         id legacy = YTKACEPreferenceObject(@"sbSkipMode");

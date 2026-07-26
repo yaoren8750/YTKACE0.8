@@ -7,5 +7,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 FOUNDATION_EXPORT UINavigationController *YTKACEMakeSettingsNavigationController(void);
 FOUNDATION_EXPORT void YTKACEApplyAppearance(UIViewController *controller);
+FOUNDATION_EXPORT BOOL YTKACEOwnsNavigationController(
+    UINavigationController *_Nullable navigation);
 
 NS_ASSUME_NONNULL_END

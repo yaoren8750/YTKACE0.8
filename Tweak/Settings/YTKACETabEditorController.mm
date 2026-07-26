@@ -2,6 +2,7 @@
 #import "YTKACERootOptionsController.h"
 #import "YTKACESettingsPages.h"
 #import "../Runtime/Preferences.h"
+#import "../Runtime/Localization.h"
 #import "../UI/Assets.h"
 
 #import <objc/runtime.h>
@@ -38,7 +39,7 @@ static UIImage *YTKACETabEditorIcon(NSString *token, NSString *fallback) {
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.title = @"Tab Bar";
+    self.title = YTKACELocalized(@"Tab Bar");
     self.tableView.cellLayoutMarginsFollowReadableWidth = NO;
     self.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
     self.tableView.rowHeight = 40.0;
@@ -191,7 +192,7 @@ willDisplayHeaderView:(UIView *)view
     }
 
     if (indexPath.section == 1) {
-        cell.textLabel.text = @"Default Startup Tab";
+        cell.textLabel.text = YTKACELocalized(@"Default Startup Tab");
         cell.detailTextLabel.text = YTKACEPickerSummary(@"kEnabledStartupPage", @[@"Home", @"Explore", @"Subscriptions", @"Shorts", @"You"], @[@0, @1, @2, @3, @4], 0);
         cell.detailTextLabel.textColor = UIColor.systemBlueColor;
         return cell;
@@ -310,18 +311,18 @@ commitEditingStyle:(UITableViewCellEditingStyle)editingStyle
         NSDictionary *names = [NSUserDefaults.standardUserDefaults
             dictionaryForKey:@"YTKACETabNames"];
         UIAlertController *alert = [UIAlertController
-            alertControllerWithTitle:@"Rename Tab"
-            message:@"Leave blank to restore the default name."
+            alertControllerWithTitle:YTKACELocalized(@"Rename Tab")
+            message:YTKACELocalized(@"Leave blank to restore the default name.")
             preferredStyle:UIAlertControllerStyleAlert];
         [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
             field.placeholder = tab[@"title"];
             field.text = names[token];
             field.clearButtonMode = UITextFieldViewModeWhileEditing;
         }];
-        [alert addAction:[UIAlertAction actionWithTitle:@"Cancel"
+        [alert addAction:[UIAlertAction actionWithTitle:YTKACELocalized(@"Cancel")
             style:UIAlertActionStyleCancel handler:nil]];
         [alert addAction:[UIAlertAction
-            actionWithTitle:@"Save"
+            actionWithTitle:YTKACELocalized(@"Save")
             style:UIAlertActionStyleDefault
             handler:^(__unused UIAlertAction *action) {
                 NSMutableDictionary *updated = [names mutableCopy] ?:

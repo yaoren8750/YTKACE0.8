@@ -1,6 +1,7 @@
 #import "../../YTKACE.h"
 #import "../../Runtime/Hooking.h"
 #import "../../Runtime/Preferences.h"
+#import "../Downloads/DownloadLog.h"
 
 #import <UIKit/UIKit.h>
 #import <objc/message.h>
@@ -10,11 +11,20 @@ static IMP OriginalDisplayViewDidMove;
 static IMP OriginalDisplayViewSetIdentifier;
 static IMP OriginalAddSections;
 static IMP OriginalSectionControllers;
+static IMP OriginalEnableSubheaderBar;
+static IMP OriginalChipBarUpdate;
+static IMP OriginalChipCloudSetEntry;
+static IMP OriginalSubsChipFilter;
+static IMP OriginalChipCloudLayout;
+static IMP OriginalFeedHeaderScrollMode;
+static IMP OriginalSubsSetChipFilterView;
+static IMP OriginalMaximumSubheaderHeight;
 static const void *YTKACEContentHiddenAssociation = &YTKACEContentHiddenAssociation;
 static BOOL YTKACEContentContains(NSString *token,
                                   NSArray<NSString *> *needles);
 static id YTKACEContentValue(id object, NSString *key);
 static BOOL YTKACESectionIsShortsShelf(id section);
+static BOOL YTKACEHideTopics(void);
 
 static id YTKACEContentValue(id object, NSString *key) {
     if (object == nil || key.length == 0) {
@@ -31,10 +41,32 @@ static id YTKACEContentValue(id object, NSString *key) {
     }
 }
 
+static BOOL YTKACEItemIsShorts(id item) {
+    NSString *description = [[[item description] lowercaseString]
+        stringByReplacingOccurrencesOfString:@"." withString:@"_"];
+    return YTKACEContentContains(description, @[
+        @"shorts_shelf_eml", @"shorts_shelf", @"reel_shelf",
+        @"shorts_lockup_shelf", @"shortsshelfrenderer", @"reelshelfrenderer",
+        @"shortslockupviewmodel", @"shorts_video_cell", @"reelitemrenderer",
+        @"shortslockup"
+    ]);
+}
+
 static BOOL YTKACESectionIsShortsShelf(id section) {
     if (section == nil) {
         return NO;
     }
+
+    NSArray *entries = YTKACEContentValue(section, @"contentsArray");
+    if ([entries isKindOfClass:NSArray.class] && entries.count != 0) {
+        for (id entry in entries) {
+            if (!YTKACEItemIsShorts(entry)) {
+                return NO;
+            }
+        }
+        return YES;
+    }
+
     NSString *description = [[[section description] lowercaseString]
         stringByReplacingOccurrencesOfString:@"." withString:@"_"];
     if (YTKACEContentContains(description, @[
@@ -66,16 +98,46 @@ static BOOL YTKACESectionIsShortsShelf(id section) {
     return NO;
 }
 
+static BOOL YTKACEEntryIsChipBar(id entry) {
+    NSString *description = [[entry description] lowercaseString];
+    return [description containsString:@"chipcloudrenderer"] ||
+           [description containsString:@"feedfilterchipbarrenderer"] ||
+           [description containsString:@"filterchipbarelementrenderer"];
+}
+
+static BOOL YTKACESectionIsTopicChipBar(id section) {
+    if (section == nil) {
+        return NO;
+    }
+    NSString *className = NSStringFromClass([section class]).lowercaseString;
+    if ([className containsString:@"chipcloudrenderer"] ||
+        [className containsString:@"feedfilterchipbarrenderer"] ||
+        [className containsString:@"filterchipbarelementrenderer"]) {
+        return YES;
+    }
+    NSArray *entries = YTKACEContentValue(section, @"contentsArray");
+    if (![entries isKindOfClass:NSArray.class] || entries.count == 0) {
+        return NO;
+    }
+    for (id entry in entries) {
+        if (!YTKACEEntryIsChipBar(entry)) {
+            return NO;
+        }
+    }
+    return YES;
+}
+
 static NSArray *YTKACEFilteredFeedSections(NSArray *sections) {
-    if (!YTKACEFeatureEnabled(@"kEnableHideYTShorts") ||
-        ![sections isKindOfClass:NSArray.class]) {
+    BOOL hideShorts = YTKACEFeatureEnabled(@"kEnableHideYTShorts");
+    BOOL hideTopics = YTKACEHideTopics();
+    if ((!hideShorts && !hideTopics) || ![sections isKindOfClass:NSArray.class]) {
         return sections;
     }
     NSMutableArray *filtered = [NSMutableArray arrayWithCapacity:sections.count];
     for (id section in sections) {
-        if (!YTKACESectionIsShortsShelf(section)) {
-            [filtered addObject:section];
-        }
+        if (hideShorts && YTKACESectionIsShortsShelf(section)) continue;
+        if (hideTopics && YTKACESectionIsTopicChipBar(section)) continue;
+        [filtered addObject:section];
     }
     return filtered;
 }
@@ -212,6 +274,7 @@ static BOOL YTKACEContentShouldHide(UIView *view, BOOL *hideSuperview) {
 static void YTKACEApplyContentVisibility(UIView *view) {
     BOOL hideSuperview = NO;
     BOOL hidden = YTKACEContentShouldHide(view, &hideSuperview);
+
     UIView *target = hideSuperview ? view.superview : view;
     if (target == nil) {
         return;
@@ -260,6 +323,125 @@ static void YTKACEDisplayViewSetIdentifier(UIView *receiver,
     YTKACEApplyContentVisibility(receiver);
 }
 
+static BOOL YTKACEHideTopics(void) {
+    return YTKACEFeatureEnabled(@"kEnableNoTopics");
+}
+
+static void YTKACECollapseSubheader(id receiver) {
+    SEL height = NSSelectorFromString(@"setMaximumSubheaderHeight:");
+    if ([receiver respondsToSelector:height]) {
+        ((void (*)(id, SEL, double))objc_msgSend)(receiver, height, 0.0);
+    }
+    for (NSString *name in @[@"hideSubheaderBar", @"disableSubheaderBar",
+                             @"resetScrollViewInsetOffset"]) {
+        SEL selector = NSSelectorFromString(name);
+        if ([receiver respondsToSelector:selector]) {
+            ((void (*)(id, SEL))objc_msgSend)(receiver, selector);
+        }
+    }
+    SEL enabled = NSSelectorFromString(@"setSubheaderBarEnabled:");
+    if ([receiver respondsToSelector:enabled]) {
+        ((void (*)(id, SEL, BOOL))objc_msgSend)(receiver, enabled, NO);
+    }
+}
+
+static void YTKACEEnableSubheaderBar(__unsafe_unretained id receiver, SEL selector,
+                                     __unsafe_unretained id view) {
+    BOOL hide = YTKACEHideTopics();
+    if (hide) {
+        YTKACECollapseSubheader(receiver);
+        return;
+    }
+    if (OriginalEnableSubheaderBar != NULL) {
+        ((void (*)(id, SEL, id))OriginalEnableSubheaderBar)(receiver, selector, view);
+    }
+}
+
+static void YTKACEChipBarUpdate(__unsafe_unretained id receiver, SEL selector,
+                                __unsafe_unretained id collectionViewController,
+                                __unsafe_unretained id host,
+                                __unsafe_unretained id renderer,
+                                __unsafe_unretained id browseIdentifier,
+                                __unsafe_unretained id sectionList) {
+    BOOL hide = YTKACEHideTopics();
+    if (hide) return;
+    if (OriginalChipBarUpdate != NULL) {
+        ((void (*)(id, SEL, id, id, id, id, id))OriginalChipBarUpdate)(
+            receiver, selector, collectionViewController, host, renderer,
+            browseIdentifier, sectionList);
+    }
+}
+
+static void YTKACEChipCloudSetEntry(__unsafe_unretained id receiver, SEL selector,
+                                    __unsafe_unretained id entry) {
+    if (OriginalChipCloudSetEntry != NULL) {
+        ((void (*)(id, SEL, id))OriginalChipCloudSetEntry)(receiver, selector, entry);
+    }
+    BOOL hide = YTKACEHideTopics();
+    if (!hide) return;
+    if ([receiver isKindOfClass:UIView.class]) {
+        UIView *cell = (UIView *)receiver;
+        cell.hidden = YES;
+        cell.userInteractionEnabled = NO;
+    }
+}
+
+static void YTKACEChipCloudLayout(__unsafe_unretained id receiver, SEL selector) {
+    if (OriginalChipCloudLayout != NULL) {
+        ((void (*)(id, SEL))OriginalChipCloudLayout)(receiver, selector);
+    }
+    BOOL hide = YTKACEHideTopics();
+    if (!hide) return;
+    if (![receiver isKindOfClass:UIView.class]) return;
+    UIView *cell = (UIView *)receiver;
+    cell.hidden = YES;
+    cell.userInteractionEnabled = NO;
+    CGRect frame = cell.frame;
+    if (frame.size.height != 0.0) {
+        frame.size.height = 0.0;
+        cell.frame = frame;
+    }
+    for (UIView *subview in cell.subviews) {
+        subview.hidden = YES;
+    }
+}
+
+static void YTKACEFeedHeaderScrollMode(__unsafe_unretained id receiver, SEL selector,
+                                       NSInteger mode) {
+    if (OriginalFeedHeaderScrollMode != NULL) {
+        ((void (*)(id, SEL, NSInteger))OriginalFeedHeaderScrollMode)(
+            receiver, selector, mode);
+    }
+}
+
+static void YTKACESubsSetChipFilterView(__unsafe_unretained id receiver, SEL selector,
+                                        __unsafe_unretained id view) {
+    BOOL hide = YTKACEHideTopics();
+    if (hide) return;
+    if (OriginalSubsSetChipFilterView != NULL) {
+        ((void (*)(id, SEL, id))OriginalSubsSetChipFilterView)(receiver, selector, view);
+    }
+}
+
+static void YTKACESubsChipFilter(__unsafe_unretained id receiver, SEL selector,
+                                 __unsafe_unretained id model) {
+    BOOL hide = YTKACEHideTopics();
+    if (hide) return;
+    if (OriginalSubsChipFilter != NULL) {
+        ((void (*)(id, SEL, id))OriginalSubsChipFilter)(receiver, selector, model);
+    }
+}
+
+static void YTKACEMaximumSubheaderHeight(__unsafe_unretained id receiver,
+                                        SEL selector, double height) {
+    BOOL hide = YTKACEHideTopics();
+    if (hide) height = 0.0;
+    if (OriginalMaximumSubheaderHeight != NULL) {
+        ((void (*)(id, SEL, double))OriginalMaximumSubheaderHeight)(
+            receiver, selector, height);
+    }
+}
+
 static void YTKACEAddSections(id receiver, SEL selector, NSArray *sections) {
     if (OriginalAddSections != NULL) {
         ((void (*)(id, SEL, id))OriginalAddSections)(
@@ -284,4 +466,36 @@ void YTKACEInstallContentVisibilityHooks(void) {
                               @"sectionControllersForSectionRenderers:reloadingSectionControllerByRenderer:",
                               (IMP)YTKACESectionControllers,
                               &OriginalSectionControllers);
+    YTKACEInstallInstanceHook(@"YTHeaderContentComboView",
+                              @"enableSubheaderBarWithView:",
+                              (IMP)YTKACEEnableSubheaderBar,
+                              &OriginalEnableSubheaderBar);
+    YTKACEInstallInstanceHook(@"YTFeedFilterChipBarController",
+                              @"updateWithCollectionViewController:feedFilterChipBarHost:feedFilterChipBarRenderer:browseIdentifier:sectionList:",
+                              (IMP)YTKACEChipBarUpdate,
+                              &OriginalChipBarUpdate);
+    YTKACEInstallInstanceHook(@"YTChipCloudCell",
+                              @"setEntry:",
+                              (IMP)YTKACEChipCloudSetEntry,
+                              &OriginalChipCloudSetEntry);
+    YTKACEInstallInstanceHook(@"YTMySubsFilterHeaderViewController",
+                              @"loadChipFilterFromModel:",
+                              (IMP)YTKACESubsChipFilter,
+                              &OriginalSubsChipFilter);
+    YTKACEInstallInstanceHook(@"YTChipCloudCell",
+                              @"layoutSubviews",
+                              (IMP)YTKACEChipCloudLayout,
+                              &OriginalChipCloudLayout);
+    YTKACEInstallInstanceHook(@"YTHeaderContentComboView",
+                              @"setFeedHeaderScrollMode:",
+                              (IMP)YTKACEFeedHeaderScrollMode,
+                              &OriginalFeedHeaderScrollMode);
+    YTKACEInstallInstanceHook(@"YTHeaderContentComboView",
+                              @"setMaximumSubheaderHeight:",
+                              (IMP)YTKACEMaximumSubheaderHeight,
+                              &OriginalMaximumSubheaderHeight);
+    YTKACEInstallInstanceHook(@"YTMySubsFilterHeaderView",
+                              @"setChipFilterView:",
+                              (IMP)YTKACESubsSetChipFilterView,
+                              &OriginalSubsSetChipFilterView);
 }

@@ -1,4 +1,5 @@
 #import "YTKACEDownloadPlayerController.h"
+#import "../../Runtime/Localization.h"
 #import "MediaArtwork.h"
 #import "../../Settings/YTKACESettingsPages.h"
 
@@ -773,12 +774,12 @@ static NSArray<YTKACESubtitleCue *> *YTKACEReadSubtitles(NSURL *mediaURL) {
         ? UIColor.systemRedColor : UIColor.whiteColor;
     self.speedDetail.text = [NSString stringWithFormat:@"· %.2gx", self.session.playbackRate];
     if (self.session.pauseAtEnd) {
-        self.sleepDetail.text = @"· End of track";
+        self.sleepDetail.text = YTKACELocalized(@"· End of track");
     } else if (self.sleepTimer.isValid) {
         self.sleepDetail.text = [NSString stringWithFormat:@"· %ldm",
             (long)self.sleepMinutes];
     } else {
-        self.sleepDetail.text = @"· Off";
+        self.sleepDetail.text = YTKACELocalized(@"· Off");
     }
     self.gesturesDetail.text = self.session.gesturesEnabled ? @"· On" : @"· Off";
     self.autoplayDetail.text = self.session.autoplayEnabled ? @"· On" : @"· Off";

@@ -3,6 +3,7 @@
 #import "YTKACEDownloadsController.h"
 #import "YTKACESettingsPages.h"
 #import "../Runtime/Preferences.h"
+#import "../Runtime/Localization.h"
 #import "../UI/Assets.h"
 #import "../UI/Notice.h"
 #import "../Features/Downloads/DownloadLog.h"
@@ -34,10 +35,54 @@ static UIImage *YTKACESponsorIcon(void) {
                                @"play.shield");
 }
 
+static const void *YTKACEDismissTargetKey = &YTKACEDismissTargetKey;
+
+@interface YTKACEDismissTarget : NSObject
+@property(nonatomic, weak) UIViewController *controller;
+- (void)dismiss;
+- (void)pop;
+@end
+
+@implementation YTKACEDismissTarget
+- (void)dismiss {
+    [self.controller dismissViewControllerAnimated:YES completion:nil];
+}
+- (void)pop {
+    [self.controller.navigationController popViewControllerAnimated:YES];
+}
+@end
+
+static const void *YTKACEOwnedNavigationKey = &YTKACEOwnedNavigationKey;
+
+BOOL YTKACEOwnsNavigationController(UINavigationController *navigation) {
+    if (navigation == nil) return NO;
+    return [objc_getAssociatedObject(navigation, YTKACEOwnedNavigationKey) boolValue];
+}
+
 void YTKACEApplyAppearance(UIViewController *controller) {
     controller.view.backgroundColor = YTKACERootBackground();
     controller.overrideUserInterfaceStyle = UIUserInterfaceStyleUnspecified;
     UINavigationController *navigation = controller.navigationController;
+    if (!YTKACEOwnsNavigationController(navigation)) {
+        if (navigation != nil &&
+            controller.navigationItem.leftBarButtonItem == nil &&
+            navigation.viewControllers.firstObject != controller) {
+            YTKACEDismissTarget *target = [YTKACEDismissTarget new];
+            target.controller = controller;
+            objc_setAssociatedObject(controller, YTKACEDismissTargetKey, target,
+                                     OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            UIImage *chevron = [UIImage systemImageNamed:@"chevron.backward"];
+            UIBarButtonItem *back =
+                [[UIBarButtonItem alloc] initWithImage:chevron
+                                                 style:UIBarButtonItemStylePlain
+                                                target:target
+                                                action:@selector(pop)];
+            back.imageInsets = UIEdgeInsetsMake(0.0, 8.0, 0.0, 0.0);
+            controller.navigationItem.leftBarButtonItem = back;
+            controller.navigationItem.hidesBackButton = YES;
+        }
+        return;
+    }
     if (@available(iOS 15.0, *)) {
         UINavigationBarAppearance *appearance = [UINavigationBarAppearance new];
         [appearance configureWithOpaqueBackground];
@@ -59,7 +104,7 @@ void YTKACEApplyAppearance(UIViewController *controller) {
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.title = @"Download Log";
+    self.title = YTKACELocalized(@"Download Log");
     self.textView = [[UITextView alloc] initWithFrame:self.view.bounds];
     self.textView.autoresizingMask = UIViewAutoresizingFlexibleWidth |
         UIViewAutoresizingFlexibleHeight;
@@ -155,7 +200,7 @@ void YTKACEApplyAppearance(UIViewController *controller) {
     [close setImage:YTKACETemplateImage(@"close_20pt_3x_Normal", @"xmark")
             forState:UIControlStateNormal];
     close.tintColor = UIColor.labelColor;
-    close.accessibilityLabel = @"Close";
+    close.accessibilityLabel = YTKACELocalized(@"Close");
     [close addTarget:self action:@selector(closeSettings) forControlEvents:UIControlEventTouchUpInside];
     [header addSubview:close];
 
@@ -165,7 +210,7 @@ void YTKACEApplyAppearance(UIViewController *controller) {
     [language setImage:YTKACETemplateImage(@"translate_symbol_Normal", @"character.book.closed")
                forState:UIControlStateNormal];
     language.tintColor = UIColor.labelColor;
-    language.accessibilityLabel = @"Language";
+    language.accessibilityLabel = YTKACELocalized(@"Language");
     [language addTarget:self action:@selector(showLanguageInfo) forControlEvents:UIControlEventTouchUpInside];
     [header addSubview:language];
 
@@ -175,7 +220,7 @@ void YTKACEApplyAppearance(UIViewController *controller) {
     [apply setImage:YTKACETemplateImage(@"check_24pt_3x_Normal", @"checkmark")
             forState:UIControlStateNormal];
     apply.tintColor = UIColor.labelColor;
-    apply.accessibilityLabel = @"Apply Settings";
+    apply.accessibilityLabel = YTKACELocalized(@"Apply Settings");
     [apply addTarget:self action:@selector(applySettings) forControlEvents:UIControlEventTouchUpInside];
     [header addSubview:apply];
 
@@ -300,7 +345,7 @@ void YTKACEApplyAppearance(UIViewController *controller) {
          cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     if (indexPath.section == 0) {
         UITableViewCell *cell = [self baseCellForTableView:tableView style:UITableViewCellStyleSubtitle];
-        cell.textLabel.text = @"Enable";
+        cell.textLabel.text = YTKACELocalized(@"Enable");
         cell.textLabel.font = [UIFont systemFontOfSize:18.0 weight:UIFontWeightSemibold];
         cell.detailTextLabel.text = @"YTKACE features";
         [self configureImageForCell:cell asset:@"on_off" symbol:@"power"];
@@ -335,7 +380,7 @@ void YTKACEApplyAppearance(UIViewController *controller) {
         [self configureImageForCell:cell asset:assets[(NSUInteger)indexPath.row] symbol:symbols[(NSUInteger)indexPath.row]];
         if (indexPath.row == 1) cell.imageView.image = YTKACESponsorIcon();
         if (indexPath.row == 0) {
-            cell.detailTextLabel.text = @"Downloads, background play, and more";
+            cell.detailTextLabel.text = YTKACELocalized(@"Downloads, background play, and more");
         } else if (indexPath.row == 3) {
             cell.detailTextLabel.text = YTKACEPickerSummary(@"wiFiPlaybackIndex", @[@"Auto", @"2160p60", @"2160p", @"1440p60", @"1440p", @"1080p60", @"1080p", @"720p60", @"720p", @"480p", @"360p", @"240p", @"144p"], @[@0, @1, @2, @3, @4, @5, @6, @7, @8, @9, @10, @11, @12], 0);
         } else if (indexPath.row == 4) {
@@ -372,7 +417,7 @@ void YTKACEApplyAppearance(UIViewController *controller) {
     }
 
     UITableViewCell *cell = [self baseCellForTableView:tableView style:UITableViewCellStyleValue1];
-    cell.textLabel.text = @"itzzace";
+    cell.textLabel.text = YTKACELocalized(@"itzzace");
     cell.detailTextLabel.text = @"YTKACE";
     cell.imageView.image = YTKACEAssetImage(@"YTKIco", @"person.crop.circle");
     cell.selectionStyle = UITableViewCellSelectionStyleDefault;
@@ -472,5 +517,7 @@ UINavigationController *YTKACEMakeSettingsNavigationController(void) {
     UINavigationController *navigation = [[UINavigationController alloc]
         initWithRootViewController:root];
     navigation.modalPresentationStyle = UIModalPresentationFullScreen;
+    objc_setAssociatedObject(navigation, YTKACEOwnedNavigationKey, @YES,
+                             OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     return navigation;
 }

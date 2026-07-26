@@ -1,15 +1,46 @@
 #import "DownloadLog.h"
 
+
+
 static const NSUInteger YTKACEDownloadLogLimit = 512 * 1024;
 
 static NSURL *YTKACEDownloadLogURL(void) {
-    NSURL *base = [NSFileManager.defaultManager URLsForDirectory:NSApplicationSupportDirectory
-        inDomains:NSUserDomainMask].firstObject;
-    NSURL *directory = [[base URLByAppendingPathComponent:@"YTKACE" isDirectory:YES]
-        URLByAppendingPathComponent:@"Logs" isDirectory:YES];
-    [NSFileManager.defaultManager createDirectoryAtURL:directory
-        withIntermediateDirectories:YES attributes:nil error:nil];
-    return [directory URLByAppendingPathComponent:@"downloads.log"];
+    static NSURL *cached = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        NSArray<NSNumber *> *candidates = @[@(NSDocumentDirectory),
+                                            @(NSApplicationSupportDirectory),
+                                            @(NSCachesDirectory)];
+        for (NSNumber *candidate in candidates) {
+            NSURL *base = [NSFileManager.defaultManager
+                URLsForDirectory:(NSSearchPathDirectory)candidate.unsignedIntegerValue
+                       inDomains:NSUserDomainMask].firstObject;
+            if (base == nil) continue;
+            NSURL *directory = [[base URLByAppendingPathComponent:@"YTKACE" isDirectory:YES]
+                URLByAppendingPathComponent:@"Logs" isDirectory:YES];
+            NSError *error = nil;
+            if (![NSFileManager.defaultManager createDirectoryAtURL:directory
+                                       withIntermediateDirectories:YES
+                                                        attributes:nil
+                                                             error:&error]) {
+                continue;
+            }
+            NSURL *probe = [directory URLByAppendingPathComponent:@"downloads.log"];
+            if (![NSFileManager.defaultManager fileExistsAtPath:probe.path] &&
+                ![[NSData data] writeToURL:probe atomically:YES]) {
+                continue;
+            }
+            cached = probe;
+            break;
+        }
+        if (cached == nil) {
+            cached = [NSURL fileURLWithPath:
+                [NSTemporaryDirectory() stringByAppendingPathComponent:@"ytkace-downloads.log"]];
+        }
+        [NSUserDefaults.standardUserDefaults setObject:cached.path
+                                                forKey:@"YTKACELogPath"];
+    });
+    return cached;
 }
 
 static dispatch_queue_t YTKACEDownloadLogQueue(void) {

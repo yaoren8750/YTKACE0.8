@@ -56,6 +56,32 @@ static UIViewController *YTKACEGlobalPresenter(void) {
     return controller;
 }
 
+static BOOL YTKACEIsFullPlayer(UIViewController *controller) {
+    return [controller isKindOfClass:YTKACEDownloadPlayerController.class] ||
+        [controller isKindOfClass:YTKACEAudioPlayerController.class];
+}
+
+static BOOL YTKACEGlobalFullPlayerVisible(void) {
+    UIViewController *controller = YTKACEGlobalWindow().rootViewController;
+    while (controller != nil) {
+        if (YTKACEIsFullPlayer(controller)) return YES;
+        if (controller.presentedViewController != nil) {
+            controller = controller.presentedViewController;
+        } else if ([controller isKindOfClass:UINavigationController.class]) {
+            UINavigationController *navigation = (UINavigationController *)controller;
+            for (UIViewController *child in navigation.viewControllers) {
+                if (YTKACEIsFullPlayer(child)) return YES;
+            }
+            controller = navigation.visibleViewController;
+        } else if ([controller isKindOfClass:UITabBarController.class]) {
+            controller = ((UITabBarController *)controller).selectedViewController;
+        } else {
+            break;
+        }
+    }
+    return NO;
+}
+
 static CGFloat YTKACEGlobalTabTop(UIWindow *window) {
     __block CGFloat top = CGRectGetHeight(window.bounds) -
         window.safeAreaInsets.bottom;
@@ -178,9 +204,7 @@ static CGFloat YTKACEGlobalTabTop(UIWindow *window) {
 - (void)layoutBar {
     UIWindow *window = YTKACEGlobalWindow();
     if (window == nil || self.bar.superview != window) return;
-    UIViewController *presenter = YTKACEGlobalPresenter();
-    BOOL fullPlayer = [presenter isKindOfClass:YTKACEDownloadPlayerController.class] ||
-        [presenter isKindOfClass:YTKACEAudioPlayerController.class];
+    BOOL fullPlayer = YTKACEGlobalFullPlayerVisible();
     self.bar.hidden = fullPlayer;
     if (fullPlayer) return;
     CGFloat width = MIN(560.0, CGRectGetWidth(window.bounds) - 20.0);
@@ -266,9 +290,7 @@ static CGFloat YTKACEGlobalTabTop(UIWindow *window) {
         YTKACEDownloadPlaybackSession.sharedSession;
     if (session.currentURL == nil) return;
     UIViewController *presenter = YTKACEGlobalPresenter();
-    if (presenter == nil ||
-        [presenter isKindOfClass:YTKACEDownloadPlayerController.class] ||
-        [presenter isKindOfClass:YTKACEAudioPlayerController.class]) {
+    if (presenter == nil || YTKACEGlobalFullPlayerVisible()) {
         return;
     }
     BOOL audio = [session.currentURL.path containsString:@"/Downloads/Audio/"];

@@ -1,6 +1,7 @@
 #import "YTKACEDownloadsController.h"
 #import "YTKACERootOptionsController.h"
 #import "../Runtime/Preferences.h"
+#import "../Runtime/Localization.h"
 #import "../UI/Assets.h"
 #import "../UI/Notice.h"
 #import "../Features/Downloads/YTKACEDownloadPlayerController.h"
@@ -208,8 +209,8 @@ static UIAlertAction *YTKACEMenuAction(
     self.representedPath = nil;
     self.thumbnailView.image = nil;
     self.placeholderView.hidden = NO;
-    self.resolutionLabel.text = @"Video";
-    self.durationLabel.text = @"--:--";
+    self.resolutionLabel.text = YTKACELocalized(@"Video");
+    self.durationLabel.text = YTKACELocalized(@"--:--");
     self.metadataLabel.textAlignment = NSTextAlignmentLeft;
 }
 
@@ -253,7 +254,7 @@ static UIAlertAction *YTKACEMenuAction(
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.view.accessibilityIdentifier = @"YTKACEDownloadsRoot";
-    self.title = @"Downloads";
+    self.title = YTKACELocalized(@"Downloads");
     self.layoutMode = 0;
     self.sortMode = 0;
     self.metadataCache = [NSCache new];
@@ -305,7 +306,7 @@ static UIAlertAction *YTKACEMenuAction(
     [self.collectionView registerClass:YTKACEDownloadCell.class
              forCellWithReuseIdentifier:@"YTKACEDownloadCell"];
     self.emptyLabel = [UILabel new];
-    self.emptyLabel.text = @"No Downloads";
+    self.emptyLabel.text = YTKACELocalized(@"No Downloads");
     self.emptyLabel.textColor = UIColor.secondaryLabelColor;
     self.emptyLabel.font = [UIFont systemFontOfSize:17.0 weight:UIFontWeightSemibold];
     self.emptyLabel.textAlignment = NSTextAlignmentCenter;
@@ -665,8 +666,8 @@ minimumInteritemSpacingForSectionAtIndex:(NSInteger)section {
                                                               countStyle:NSByteCountFormatterCountStyleFile];
     cell.thumbnailView.image = nil;
     cell.placeholderView.hidden = NO;
-    cell.resolutionLabel.text = @"Video";
-    cell.durationLabel.text = @"--:--";
+    cell.resolutionLabel.text = YTKACELocalized(@"Video");
+    cell.durationLabel.text = YTKACELocalized(@"--:--");
     [cell applyTheme];
     BOOL hasLongPress = NO;
     for (UIGestureRecognizer *recognizer in cell.gestureRecognizers) {
@@ -927,7 +928,7 @@ didSelectItemAtIndexPath:(NSIndexPath *)indexPath {
         ^(__unused UIAlertAction *action) {
             [self confirmDeleteAll];
         })];
-    [menu addAction:[UIAlertAction actionWithTitle:@"Cancel"
+    [menu addAction:[UIAlertAction actionWithTitle:YTKACELocalized(@"Cancel")
         style:UIAlertActionStyleCancel handler:nil]];
     if (menu.popoverPresentationController != nil) {
         menu.popoverPresentationController.sourceView = sourceView;
@@ -1002,15 +1003,15 @@ didSelectItemAtIndexPath:(NSIndexPath *)indexPath {
 }
 
 - (void)renameURL:(NSURL *)url {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Rename"
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:YTKACELocalized(@"Rename")
         message:nil preferredStyle:UIAlertControllerStyleAlert];
     [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
         field.text = url.lastPathComponent.stringByDeletingPathExtension;
         field.clearButtonMode = UITextFieldViewModeWhileEditing;
     }];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel"
+    [alert addAction:[UIAlertAction actionWithTitle:YTKACELocalized(@"Cancel")
         style:UIAlertActionStyleCancel handler:nil]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Save"
+    [alert addAction:[UIAlertAction actionWithTitle:YTKACELocalized(@"Save")
         style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
             NSString *name = alert.textFields.firstObject.text;
             if (name.length == 0) {

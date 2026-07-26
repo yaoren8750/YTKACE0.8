@@ -2,6 +2,7 @@
 #import "YTKACERootOptionsController.h"
 #import "YTKACETabEditorController.h"
 #import "../Runtime/Preferences.h"
+#import "../Runtime/Localization.h"
 #import "../UI/Assets.h"
 #import "../UI/Notice.h"
 #import "../Features/Downloads/YTKACEBackupManager.h"
@@ -19,13 +20,21 @@ typedef void (^YTKACEAction)(UIViewController *controller);
 static const void *YTKACEItemAssociation = &YTKACEItemAssociation;
 static const void *YTKACEValueLabelAssociation = &YTKACEValueLabelAssociation;
 
+static NSArray<NSString *> *YTKACELocalizedList(NSArray<NSString *> *titles) {
+    NSMutableArray *out = [NSMutableArray arrayWithCapacity:titles.count];
+    for (NSString *title in titles) {
+        [out addObject:YTKACELocalized(title)];
+    }
+    return out;
+}
+
 static NSDictionary *YTKACEToggle(NSString *title,
                                    NSString *key,
                                    NSString *asset,
                                    NSString *symbol) {
     return @{
         @"type": @"toggle",
-        @"title": title,
+        @"title": YTKACELocalized(title),
         @"key": key,
         @"asset": asset ?: @"",
         @"symbol": symbol ?: @""
@@ -37,8 +46,8 @@ static NSDictionary *YTKACEToggleDetail(NSString *title,
                                          NSString *key) {
     return @{
         @"type": @"toggle",
-        @"title": title,
-        @"subtitle": subtitle ?: @"",
+        @"title": YTKACELocalized(title),
+        @"subtitle": YTKACELocalized(subtitle ?: @""),
         @"key": key,
         @"asset": @"",
         @"symbol": @""
@@ -54,9 +63,9 @@ static NSDictionary *YTKACEPicker(NSString *title,
                                    NSString *symbol) {
     return @{
         @"type": @"picker",
-        @"title": title,
+        @"title": YTKACELocalized(title),
         @"key": key,
-        @"titles": titles,
+        @"titles": YTKACELocalizedList(titles),
         @"values": values,
         @"default": @(defaultIndex),
         @"asset": asset ?: @"",
@@ -72,7 +81,7 @@ static NSDictionary *YTKACEStepper(NSString *title,
                                     double fallback) {
     return @{
         @"type": @"stepper",
-        @"title": title,
+        @"title": YTKACELocalized(title),
         @"key": key,
         @"minimum": @(minimum),
         @"maximum": @(maximum),
@@ -88,9 +97,25 @@ static NSDictionary *YTKACESegmented(NSString *title,
                                       NSUInteger defaultIndex) {
     return @{
         @"type": @"segmented",
-        @"title": title,
+        @"title": YTKACELocalized(title),
         @"key": key,
-        @"titles": titles,
+        @"titles": YTKACELocalizedList(titles),
+        @"values": values,
+        @"default": @(defaultIndex)
+    };
+}
+
+static NSDictionary *YTKACESegmentedStacked(NSString *title,
+                                            NSString *key,
+                                            NSArray<NSString *> *titles,
+                                            NSArray *values,
+                                            NSUInteger defaultIndex) {
+    return @{
+        @"type": @"segmented",
+        @"stacked": @YES,
+        @"title": YTKACELocalized(title),
+        @"key": key,
+        @"titles": YTKACELocalizedList(titles),
         @"values": values,
         @"default": @(defaultIndex)
     };
@@ -104,7 +129,7 @@ static NSDictionary *YTKACESlider(NSString *title,
                                    double fallback) {
     return @{
         @"type": @"slider",
-        @"title": title,
+        @"title": YTKACELocalized(title),
         @"key": key,
         @"minimum": @(minimum),
         @"maximum": @(maximum),
@@ -118,7 +143,7 @@ static NSDictionary *YTKACEColor(NSString *title,
                                  NSString *fallback) {
     return @{
         @"type": @"color",
-        @"title": title,
+        @"title": YTKACELocalized(title),
         @"key": key,
         @"fallback": fallback
     };
@@ -156,8 +181,8 @@ static NSDictionary *YTKACEActionDetail(NSString *title,
                                          YTKACEAction action) {
     return @{
         @"type": @"action",
-        @"title": title,
-        @"subtitle": subtitle ?: @"",
+        @"title": YTKACELocalized(title),
+        @"subtitle": YTKACELocalized(subtitle ?: @""),
         @"asset": @"",
         @"symbol": @"",
         @"action": [action copy]
@@ -373,7 +398,9 @@ NSString *YTKACEPickerSummary(NSString *key,
 
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
-    [self.navigationController setNavigationBarHidden:NO animated:NO];
+    if (YTKACEOwnsNavigationController(self.navigationController)) {
+        [self.navigationController setNavigationBarHidden:NO animated:NO];
+    }
     YTKACEApplyAppearance(self);
     self.tableView.backgroundColor = YTKACESettingsBackground();
     [self.tableView reloadData];
@@ -463,7 +490,9 @@ NSString *YTKACEPickerSummary(NSString *key,
 
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
-    [self.navigationController setNavigationBarHidden:NO animated:NO];
+    if (YTKACEOwnsNavigationController(self.navigationController)) {
+        [self.navigationController setNavigationBarHidden:NO animated:NO];
+    }
     YTKACEApplyAppearance(self);
     self.tableView.backgroundColor = YTKACESettingsBackground();
     [self.tableView reloadData];
@@ -505,6 +534,9 @@ NSString *YTKACEPickerSummary(NSString *key,
     }
     if ([type isEqualToString:@"slider"]) {
         return 58.0;
+    }
+    if ([type isEqualToString:@"segmented"] && [item[@"stacked"] boolValue]) {
+        return 74.0;
     }
     return [item[@"subtitle"] length] == 0 ? 40.0 : 56.0;
 }
@@ -570,8 +602,6 @@ willDisplayHeaderView:(UIView *)view
         control.selectedSegmentIndex = selectedIndex == NSNotFound
             ? [item[@"default"] unsignedIntegerValue]
             : selectedIndex;
-        CGFloat width = MAX(128.0, [item[@"titles"] count] * 68.0);
-        control.frame = CGRectMake(0.0, 0.0, width, 30.0);
         objc_setAssociatedObject(control,
                                  YTKACEItemAssociation,
                                  item,
@@ -579,7 +609,41 @@ willDisplayHeaderView:(UIView *)view
         [control addTarget:self
                     action:@selector(segmentChanged:)
           forControlEvents:UIControlEventValueChanged];
-        cell.accessoryView = control;
+        if ([item[@"stacked"] boolValue]) {
+            for (UIView *existing in cell.contentView.subviews) {
+                if (existing.tag == 8801 || existing.tag == 8802) {
+                    [existing removeFromSuperview];
+                }
+            }
+            UILabel *caption = [UILabel new];
+            caption.tag = 8802;
+            caption.text = item[@"title"];
+            caption.font = [UIFont systemFontOfSize:16.0];
+            caption.textColor = UIColor.labelColor;
+            caption.translatesAutoresizingMaskIntoConstraints = NO;
+            [cell.contentView addSubview:caption];
+            control.tag = 8801;
+            control.translatesAutoresizingMaskIntoConstraints = NO;
+            [cell.contentView addSubview:control];
+            UILayoutGuide *guide = cell.contentView.layoutMarginsGuide;
+            [NSLayoutConstraint activateConstraints:@[
+                [caption.leadingAnchor constraintEqualToAnchor:guide.leadingAnchor],
+                [caption.trailingAnchor constraintEqualToAnchor:guide.trailingAnchor],
+                [caption.topAnchor constraintEqualToAnchor:cell.contentView.topAnchor
+                                                  constant:8.0],
+                [control.leadingAnchor constraintEqualToAnchor:guide.leadingAnchor],
+                [control.trailingAnchor constraintEqualToAnchor:guide.trailingAnchor],
+                [control.topAnchor constraintEqualToAnchor:caption.bottomAnchor
+                                                  constant:8.0],
+                [control.heightAnchor constraintEqualToConstant:30.0]
+            ]];
+            cell.textLabel.text = nil;
+            cell.accessoryView = nil;
+        } else {
+            CGFloat width = MAX(128.0, [item[@"titles"] count] * 68.0);
+            control.frame = CGRectMake(0.0, 0.0, width, 30.0);
+            cell.accessoryView = control;
+        }
         cell.selectionStyle = UITableViewCellSelectionStyleNone;
     } else if ([type isEqualToString:@"stepper"]) {
         double stored = [YTKACEPreferenceObject(item[@"key"]) doubleValue];
@@ -788,6 +852,18 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
             [self showResult:error == nil ? @"Import Complete" : @"Import Failed"
                       message:message];
         }];
+}
+
+- (void)colorPickerViewController:(UIColorPickerViewController *)viewController
+                   didSelectColor:(UIColor *)color
+                     continuously:(BOOL)continuously {
+    (void)continuously;
+    if (_colorKey.length == 0 || color == nil) return;
+    YTKACESetPreferenceObject(_colorKey, YTKACEHexFromColor(color));
+    if (_colorPath != nil) {
+        [self.tableView reloadRowsAtIndexPaths:@[_colorPath]
+                              withRowAnimation:UITableViewRowAnimationNone];
+    }
 }
 
 - (void)colorPickerViewControllerDidFinish:(UIColorPickerViewController *)viewController {
@@ -1031,14 +1107,15 @@ UIViewController *YTKACEMakeSponsorBlockController(void) {
         NSString *category = definition[@"id"];
         [sections addObject:@[
             YTKACESegmented(@"Behavior", YTKACESponsorBehaviorKey(category),
-                            @[@"Skip", @"Ask", @"Off"], @[@0, @1, @2],
+                            @[@"Skip", @"Ask", @"Show", @"Off"],
+                            @[@0, @1, @3, @2],
                             [category isEqualToString:@"sponsor"] ? 0 : 2),
             YTKACEColor(@"Segment Color", YTKACESponsorColorKey(category),
                         definition[@"color"])
         ]];
         [titles addObject:[definition[@"title"] uppercaseString]];
     }
-    return YTKACEPage(@"SponsorBlock", sections, titles);
+    return YTKACEPage(YTKACELocalized(@"SponsorBlock"), sections, titles);
 }
 
 UIViewController *YTKACEMakePlayerControlsController(void) {
@@ -1058,7 +1135,15 @@ UIViewController *YTKACEMakePlayerControlsController(void) {
         [NSFileManager.defaultManager removeItemAtURL:cache error:nil];
         [(YTKACEOptionsController *)controller showResult:@"Cache Cleared" message:nil];
     };
-    return YTKACEPage(@"Player Controls", @[
+    NSArray *progressSection = @[
+        YTKACESegmentedStacked(@"Progress bar style", @"kYTKACEProgressBarStyle",
+                               @[@"Default", @"Solid color", @"Gradient"], @[@0, @1, @2], 0),
+        YTKACEColor(@"Main color", @"kYTKACEProgressMainColor", @"#FF0000"),
+        YTKACEColor(@"Gradient highlight", @"kYTKACEProgressGradientColor", @"#8E8EFF"),
+        YTKACEColor(@"Scrubber color", @"kYTKACEProgressScrubberColor", @"#FF0000")
+    ];
+    return YTKACEPage(YTKACELocalized(@"Player Controls"), @[
+        progressSection,
         @[
             YTKACEToggle(@"Enable Download Feature", YTKACEDownloadKey, @"", @""),
             YTKACEToggle(@"Enable PiP", YTKACEPiPKey, @"", @""),
@@ -1081,7 +1166,8 @@ UIViewController *YTKACEMakePlayerControlsController(void) {
             YTKACEPicker(@"Clear on Startup", @"clearonstartup", @[@"Off", @"On"], @[@NO, @YES], 0, @"", @""),
             YTKACEActionDetail(@"Clear Cache", @"Remove downloaded cache files.", clearCache)
         ]
-    ], @[@"OVERLAY PLAYER", @"PLAYBACK", @"BACKUP & RESTORE", @"IMPORT MEDIA", @"CLEAR CACHE"]);
+    ], @[@"PROGRESS BAR", @"OVERLAY PLAYER", @"PLAYBACK", @"BACKUP & RESTORE",
+         @"IMPORT MEDIA", @"CLEAR CACHE"]);
 }
 
 UIViewController *YTKACEMakeTabBarOptionsController(void) {
@@ -1089,7 +1175,7 @@ UIViewController *YTKACEMakeTabBarOptionsController(void) {
 }
 
 UIViewController *YTKACEMakeOverlayOptionsController(void) {
-    return YTKACEPage(@"Overlay", @[
+    return YTKACEPage(YTKACELocalized(@"Overlay"), @[
         @[
             YTKACEToggle(@"Hide Suggested Videos", @"kEnableHideSuggestedVideo", @"", @""),
             YTKACEToggle(@"Hide Comments", @"kEnableHideComments", @"", @""),
@@ -1129,7 +1215,7 @@ UIViewController *YTKACEMakeOverlayOptionsController(void) {
 }
 
 UIViewController *YTKACEMakeStreamingOptionsController(void) {
-    return YTKACEPage(@"Streaming", @[
+    return YTKACEPage(YTKACELocalized(@"Streaming"), @[
         @[YTKACEToggle(@"Enable Legacy Quality Mode", @"kEnableLegacyQSelection", @"", @"")],
         @[
             YTKACEToggle(@"Custom Skip Duration", @"kEnableCustomDoubleTapToSkipDuration", @"", @""),
@@ -1143,7 +1229,7 @@ UIViewController *YTKACEMakeStreamingOptionsController(void) {
 }
 
 UIViewController *YTKACEMakeNavigationOptionsController(void) {
-    return YTKACEPage(@"Navigation Bar", @[
+    return YTKACEPage(YTKACELocalized(@"Navigation Bar"), @[
         @[YTKACEToggle(@"Hide Status Bar", @"kEnableHideStatusBar", @"", @"")],
         @[
             YTKACEToggle(@"Use Premium Logo", @"kEnableUsePremiumLogo", @"", @""),
@@ -1160,7 +1246,7 @@ UIViewController *YTKACEMakeNavigationOptionsController(void) {
 }
 
 UIViewController *YTKACEMakeShortsOptionsController(void) {
-    return YTKACEPage(@"Shorts", @[
+    return YTKACEPage(YTKACELocalized(@"Shorts"), @[
         @[
             YTKACEToggle(@"Enable Bottom Progress Bar", @"shortsProgress", @"", @""),
             YTKACEToggle(@"Auto Skip Shorts", @"autoSkipShorts", @"", @"")
@@ -1175,7 +1261,17 @@ UIViewController *YTKACEMakeShortsOptionsController(void) {
 }
 
 UIViewController *YTKACEMakeMiscOptionsController(void) {
-    return YTKACEPage(@"Miscellaneous", @[
+    NSArray<NSString *> *languageCodes = YTKACEAvailableLanguages();
+    NSMutableArray<NSString *> *languageNames =
+        [NSMutableArray arrayWithCapacity:languageCodes.count];
+    for (NSString *code in languageCodes) {
+        [languageNames addObject:YTKACELanguageDisplayName(code)];
+    }
+    return YTKACEPage(YTKACELocalized(@"Miscellaneous"), @[
+        @[
+            YTKACEPicker(@"Language", YTKACELanguageKey, languageNames,
+                         languageCodes, 0, @"", @"")
+        ],
         @[
             YTKACEToggle(@"Enable iPadOS Mode", @"kEnableiPadOSMode", @"", @""),
             YTKACEToggle(@"Disable Drag & Drop", @"kEnableDisableDragDrop", @"", @"")
@@ -1196,13 +1292,13 @@ UIViewController *YTKACEMakeMiscOptionsController(void) {
             YTKACEToggle(@"Bypass Age Restriction", @"kEnableAgeRestriction", @"", @""),
             YTKACEToggle(@"Disable Captions", @"kEnableDisableCaptions", @"", @"")
         ]
-    ], @[@"IPAD MODE", @"MISCELLANEOUS"]);
+    ], @[YTKACELocalized(@"Language"), @"IPAD MODE", @"MISCELLANEOUS"]);
 }
 
 UIViewController *YTKACEMakeGestureOptionsController(void) {
     NSArray *sideTitles = @[@"Right", @"Left", @"Disabled"];
     NSArray *sideValues = @[@0, @1, @2];
-    return YTKACEPage(@"Gestures", @[
+    return YTKACEPage(YTKACELocalized(@"Gestures"), @[
         @[
             YTKACEPicker(@"Brightness", @"kBrightnessSide", sideTitles, sideValues, 1, @"", @""),
             YTKACEPicker(@"Volume", @"kVolumeSide", sideTitles, sideValues, 0, @"", @""),
@@ -1210,7 +1306,7 @@ UIViewController *YTKACEMakeGestureOptionsController(void) {
         ],
         @[
             YTKACEToggle(@"Hold to Seek", @"kEnableHoldToSeek", @"", @""),
-            YTKACESlider(@"Seek Duration", @"kSeekDuration", 5.0, 60.0, 5.0, 10.0)
+            YTKACESlider(@"Seek Duration", @"kSeekDuration", 1.0, 60.0, 1.0, 10.0)
         ]
     ], @[@"VOLUME & BRIGHTNESS GESTURES", @"SEEK SETTINGS"]);
 }

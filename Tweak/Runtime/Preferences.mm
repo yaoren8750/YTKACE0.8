@@ -1,4 +1,5 @@
 #import "Preferences.h"
+#import "Localization.h"
 
 #import <UIKit/UIKit.h>
 
@@ -11,9 +12,29 @@ NSString * const YTKACEBackgroundPlaybackKey = @"kEnablePlayInBackgrounds";
 NSString * const YTKACEPiPKey = @"kEnableYTKPiP";
 NSString * const YTKACESpeedKey = @"kEnableisSpeed";
 NSString * const YTKACELoopKey = @"kEnableYTKLoop";
+NSString * const YTKACEPreferencesDidChangeNotification =
+    @"YTKACEPreferencesDidChangeNotification";
 
 static NSUserDefaults *YTKACEDefaults(void) {
     return NSUserDefaults.standardUserDefaults;
+}
+
+static void YTKACEAnnouncePreferenceChange(NSString *key) {
+    if (key.length == 0) return;
+    if ([key isEqualToString:@"kYTKACELanguage"]) {
+        YTKACEResetLocalizationCache();
+    }
+    void (^post)(void) = ^{
+        [NSNotificationCenter.defaultCenter
+            postNotificationName:YTKACEPreferencesDidChangeNotification
+                          object:nil
+                        userInfo:@{@"key": key}];
+    };
+    if (NSThread.isMainThread) {
+        post();
+    } else {
+        dispatch_async(dispatch_get_main_queue(), post);
+    }
 }
 
 void YTKACERegisterDefaults(void) {
@@ -184,6 +205,7 @@ void YTKACESetPreference(NSString *key, BOOL enabled) {
 
     if ([key isEqualToString:YTKACEMasterEnabledKey]) {
         [YTKACEDefaults() setBool:YES forKey:key];
+        YTKACEAnnouncePreferenceChange(key);
         return;
     }
     if (![key isEqualToString:YTKACEMasterEnabledKey]) {
@@ -193,6 +215,7 @@ void YTKACESetPreference(NSString *key, BOOL enabled) {
         [YTKACEDefaults() setObject:legacy forKey:@"YTKPlus"];
     }
     [YTKACEDefaults() setBool:enabled forKey:key];
+    YTKACEAnnouncePreferenceChange(key);
 }
 
 id YTKACEPreferenceObject(NSString *key) {
@@ -218,6 +241,7 @@ void YTKACESetPreferenceObject(NSString *key, id value) {
         [YTKACEDefaults() setObject:value forKey:key];
     }
     [YTKACEDefaults() setObject:legacy forKey:@"YTKPlus"];
+    YTKACEAnnouncePreferenceChange(key);
 }
 
 static NSString *YTKACERelativeStoragePath(NSURL *URL, NSURL *baseURL) {

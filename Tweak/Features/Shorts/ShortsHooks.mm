@@ -1,6 +1,7 @@
 #import "../../YTKACE.h"
 #import "../../Runtime/Hooking.h"
 #import "../../Runtime/Preferences.h"
+#import "../Downloads/DownloadLog.h"
 #import "../Downloads/DownloadCoordinator.h"
 
 #import <QuartzCore/QuartzCore.h>
@@ -17,6 +18,15 @@ static const void *YTKACEShortsSkipAssociation = &YTKACEShortsSkipAssociation;
 static const void *YTKACEShortsDownloadAssociation = &YTKACEShortsDownloadAssociation;
 static const void *YTKACEShortsHiddenAssociation = &YTKACEShortsHiddenAssociation;
 static NSInteger const YTKACEShortsDownloadTag = 0x59544B44;
+static __weak UIButton *YTKACEActiveShortsDownloadButton;
+static BOOL YTKACEViewContains(UIView *ancestor, UIView *view) {
+    if (ancestor == nil || view == nil) return NO;
+    for (UIView *node = view; node != nil; node = node.superview) {
+        if (node == ancestor) return YES;
+    }
+    return NO;
+}
+
 static double YTKACELastShortsTime;
 static double YTKACELastShortsDuration;
 static id YTKACELatestShortsPlayerResponse;
@@ -148,10 +158,26 @@ static id YTKACEShortsResponseFromObject(id object,
     return nil;
 }
 
+static NSMutableDictionary<NSString *, NSNumber *> *YTKACEShortsBarrenClasses;
+
 static id YTKACEShortsPlayerResponseFromObject(id object) {
+    if (object == nil) return nil;
+    NSString *name = NSStringFromClass([object class]);
+    if (YTKACEShortsBarrenClasses == nil) {
+        YTKACEShortsBarrenClasses = [NSMutableDictionary dictionary];
+    }
+    if (YTKACEShortsBarrenClasses[name].integerValue >= 3) return nil;
+
     NSHashTable *visited = [NSHashTable hashTableWithOptions:
         NSPointerFunctionsObjectPointerPersonality];
-    return YTKACEShortsResponseFromObject(object, visited, 0);
+    id result = YTKACEShortsResponseFromObject(object, visited, 0);
+    if (result != nil) {
+        [YTKACEShortsBarrenClasses removeObjectForKey:name];
+    } else {
+        YTKACEShortsBarrenClasses[name] =
+            @(YTKACEShortsBarrenClasses[name].integerValue + 1);
+    }
+    return result;
 }
 
 @interface YTKACEShortsDownloadTarget : NSObject
@@ -167,8 +193,9 @@ static id YTKACEShortsPlayerResponseFromObject(id object) {
     return target;
 }
 - (void)downloadTapped:(UIButton *)sender {
-    id response = YTKACEShortsPlayerResponseFromObject(sender) ?:
-        YTKACELatestShortsPlayerResponse;
+    [YTKACEShortsBarrenClasses removeAllObjects];
+    id fromView = YTKACEShortsPlayerResponseFromObject(sender);
+    id response = fromView ?: YTKACELatestShortsPlayerResponse;
     YTKACEDownloadCoordinator.sharedCoordinator.playerResponse = response;
     [YTKACEDownloadCoordinator.sharedCoordinator
         showShortsDownloadMenuFromView:sender];
@@ -252,6 +279,7 @@ static void YTKACEUpdateShortsProgress(void) {
             fill.frame = CGRectMake(0.0, 0.0,
                                     CGRectGetWidth(track.bounds) * ratio,
                                     height);
+            YTKACEStyleProgressLayer(fill, CGRectGetWidth(track.bounds));
         }
     }
 }
@@ -266,6 +294,8 @@ static void YTKACEConfigureReelView(UIView *receiver, BOOL showDownload) {
         track.zPosition = 10000.0;
         fill = [CALayer layer];
         fill.backgroundColor = UIColor.redColor.CGColor;
+        objc_setAssociatedObject(receiver, YTKACEShortsFillAssociation,
+                                 fill, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         [track addSublayer:fill];
         [receiver.layer addSublayer:track];
         objc_setAssociatedObject(receiver, YTKACEShortsTrackAssociation,
@@ -273,8 +303,23 @@ static void YTKACEConfigureReelView(UIView *receiver, BOOL showDownload) {
         objc_setAssociatedObject(receiver, YTKACEShortsFillAssociation,
                                  fill, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
-    UIButton *download = [receiver viewWithTag:YTKACEShortsDownloadTag];
+    UIButton *download =
+        objc_getAssociatedObject(receiver, YTKACEShortsDownloadAssociation);
     if (showDownload && download == nil) {
+        UIButton *active = YTKACEActiveShortsDownloadButton;
+        UIView *activeHost = active.superview;
+        if (active != nil && activeHost != nil && activeHost != receiver) {
+            if (YTKACEViewContains(receiver, activeHost)) {
+                YTKACEUpdateShortsProgress();
+                return;
+            }
+            if (YTKACEViewContains(activeHost, receiver)) {
+                [active removeFromSuperview];
+                objc_setAssociatedObject(activeHost,
+                                         YTKACEShortsDownloadAssociation, nil,
+                                         OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
+        }
         download = [UIButton buttonWithType:UIButtonTypeSystem];
         download.tag = YTKACEShortsDownloadTag;
         download.accessibilityIdentifier = @"YTKACE Shorts Download";
@@ -301,14 +346,20 @@ static void YTKACEConfigureReelView(UIView *receiver, BOOL showDownload) {
         ]];
         objc_setAssociatedObject(receiver, YTKACEShortsDownloadAssociation,
             download, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        YTKACEActiveShortsDownloadButton = download;
     }
     if (download != nil) {
         download.hidden = !YTKACEFeatureEnabled(YTKACEDownloadKey);
         [receiver bringSubviewToFront:download];
     }
-    id response = YTKACEShortsPlayerResponseFromObject(receiver);
-    if (response != nil) {
-        YTKACELatestShortsPlayerResponse = response;
+    static NSTimeInterval lastResolve = 0.0;
+    NSTimeInterval now = NSDate.date.timeIntervalSince1970;
+    if (YTKACELatestShortsPlayerResponse == nil || now - lastResolve > 0.5) {
+        lastResolve = now;
+        id response = YTKACEShortsPlayerResponseFromObject(receiver);
+        if (response != nil) {
+            YTKACELatestShortsPlayerResponse = response;
+        }
     }
     YTKACEUpdateShortsProgress();
 }
@@ -393,10 +444,15 @@ static void YTKACEShortsTimeChanged(NSNotification *notification) {
     if (shorts == nil) {
         return;
     }
-    id response = YTKACEShortsPlayerResponseFromObject(player) ?:
-        YTKACEShortsPlayerResponseFromObject(shorts);
-    if (response != nil) {
-        YTKACELatestShortsPlayerResponse = response;
+    static CFTimeInterval lastLookup = 0.0;
+    if (YTKACELatestShortsPlayerResponse == nil ||
+        CACurrentMediaTime() - lastLookup > 1.0) {
+        lastLookup = CACurrentMediaTime();
+        id response = YTKACEShortsPlayerResponseFromObject(player) ?:
+            YTKACEShortsPlayerResponseFromObject(shorts);
+        if (response != nil) {
+            YTKACELatestShortsPlayerResponse = response;
+        }
     }
     double time = [notification.userInfo[@"time"] doubleValue];
     double duration = YTKACEShortsDouble(player, @[
