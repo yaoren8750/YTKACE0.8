@@ -1,5 +1,6 @@
 #import "YTKACEDownloadsController.h"
 #import "YTKACERootOptionsController.h"
+#import "../YTKACE.h"
 #import "../Runtime/Preferences.h"
 #import "../Runtime/Localization.h"
 #import "../UI/Assets.h"
@@ -102,6 +103,9 @@ static UIAlertAction *YTKACEMenuAction(
 @property(nonatomic, strong) UILabel *metadataLabel;
 @property(nonatomic, copy) NSString *representedPath;
 @property(nonatomic, assign) NSInteger layoutMode;
+@property(nonatomic, strong) UIView *progressTrack;
+@property(nonatomic, strong) UIImageView *progressFill;
+@property(nonatomic, assign) CGFloat watchedRatio;
 @end
 
 @implementation YTKACEDownloadCell
@@ -141,6 +145,16 @@ static UIAlertAction *YTKACEMenuAction(
     [self.contentView addSubview:self.cardView];
     [self.cardView addSubview:self.thumbnailView];
     [self.thumbnailView addSubview:self.placeholderView];
+
+    self.progressTrack = [UIView new];
+    self.progressTrack.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.35];
+    self.progressTrack.hidden = YES;
+    self.progressTrack.userInteractionEnabled = NO;
+    self.progressFill = [UIImageView new];
+    self.progressFill.contentMode = UIViewContentModeScaleToFill;
+    self.progressFill.clipsToBounds = YES;
+    [self.progressTrack addSubview:self.progressFill];
+    [self.thumbnailView addSubview:self.progressTrack];
     [self.cardView addSubview:self.resolutionLabel];
     [self.cardView addSubview:self.durationLabel];
     [self.cardView addSubview:self.nameLabel];
@@ -202,10 +216,34 @@ static UIAlertAction *YTKACEMenuAction(
         self.metadataLabel.frame = CGRectMake(7.0, 155.0, cardWidth - 14.0, 17.0);
         self.metadataLabel.textAlignment = NSTextAlignmentRight;
     }
+    [self layoutProgressBar];
+}
+
+- (void)setWatchedRatio:(CGFloat)watchedRatio {
+    _watchedRatio = MAX(0.0, MIN(1.0, watchedRatio));
+    self.progressTrack.hidden = _watchedRatio <= 0.001;
+    [self setNeedsLayout];
+}
+
+- (void)layoutProgressBar {
+    if (self.progressTrack.hidden) return;
+    CGFloat height = 3.0;
+    CGRect thumbnail = self.thumbnailView.bounds;
+    self.progressTrack.frame = CGRectMake(0.0,
+                                          CGRectGetHeight(thumbnail) - height,
+                                          CGRectGetWidth(thumbnail), height);
+    CGFloat width = CGRectGetWidth(self.progressTrack.bounds) * self.watchedRatio;
+    self.progressFill.frame = CGRectMake(0.0, 0.0, width, height);
+    if (width >= 1.0) {
+        self.progressFill.image = YTKACEProgressFillImage(
+            CGRectGetWidth(self.progressTrack.bounds), height);
+    }
+    [self.thumbnailView bringSubviewToFront:self.progressTrack];
 }
 
 - (void)prepareForReuse {
     [super prepareForReuse];
+    self.watchedRatio = 0.0;
     self.representedPath = nil;
     self.thumbnailView.image = nil;
     self.placeholderView.hidden = NO;
@@ -236,6 +274,27 @@ static UIAlertAction *YTKACEMenuAction(
 @property(nonatomic, strong) UIButton *miniPlayButton;
 @end
 
+static NSString *YTKACECategoryKey(NSInteger segment) {
+    NSArray<NSString *> *names = @[@"Video", @"Audio", @"Shorts"];
+    NSInteger index = MAX(0, MIN(segment, 2));
+    return names[(NSUInteger)index];
+}
+
+static NSInteger YTKACEStoredMode(NSString *field, NSInteger segment,
+                                  NSInteger limit) {
+    NSString *key = [NSString stringWithFormat:@"YTKACEDownloads%@.%@",
+                     field, YTKACECategoryKey(segment)];
+    id value = YTKACEPreferenceObject(key);
+    if (![value respondsToSelector:@selector(integerValue)]) return 0;
+    return MAX(0, MIN([value integerValue], limit - 1));
+}
+
+static void YTKACEStoreMode(NSString *field, NSInteger segment, NSInteger mode) {
+    NSString *key = [NSString stringWithFormat:@"YTKACEDownloads%@.%@",
+                     field, YTKACECategoryKey(segment)];
+    YTKACESetPreferenceObject(key, @(mode));
+}
+
 @implementation YTKACEDownloadsController
 
 - (void)applyTheme {
@@ -255,12 +314,17 @@ static UIAlertAction *YTKACEMenuAction(
     [super viewDidLoad];
     self.view.accessibilityIdentifier = @"YTKACEDownloadsRoot";
     self.title = YTKACELocalized(@"Downloads");
-    self.layoutMode = 0;
-    self.sortMode = 0;
     self.metadataCache = [NSCache new];
-    self.segmentedControl =
-        [[UISegmentedControl alloc] initWithItems:@[@"Video", @"Audio", @"Shorts"]];
-    self.segmentedControl.selectedSegmentIndex = 0;
+    self.segmentedControl = [[UISegmentedControl alloc] initWithItems:@[
+        YTKACELocalized(@"Video"), YTKACELocalized(@"Audio"),
+        YTKACELocalized(@"Shorts")
+    ]];
+    id storedTab = YTKACEPreferenceObject(@"YTKACEDownloadsTab");
+    NSInteger tab = [storedTab respondsToSelector:@selector(integerValue)]
+        ? MAX(0, MIN([storedTab integerValue], 2)) : 0;
+    self.segmentedControl.selectedSegmentIndex = tab;
+    self.layoutMode = YTKACEStoredMode(@"Layout", tab, 3);
+    self.sortMode = YTKACEStoredMode(@"Sort", tab, 4);
     [self.segmentedControl addTarget:self action:@selector(segmentChanged)
                     forControlEvents:UIControlEventValueChanged];
 
@@ -272,10 +336,7 @@ static UIAlertAction *YTKACEMenuAction(
         imageWithAlignmentRectInsets:UIEdgeInsetsMake(-1.0, -1.0, -1.0, -1.0)]
                     forState:UIControlStateNormal];
     [self applyLayoutButtonImage];
-    [self.sortButton setImage:[[YTKACEAssetImage(@"sort_24pt_3x_Normal", @"arrow.down.circle")
-        imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]
-        imageWithAlignmentRectInsets:UIEdgeInsetsMake(-1.0, -1.0, -1.0, -1.0)]
-                       forState:UIControlStateNormal];
+    [self applySortButtonImage];
     for (UIButton *button in @[settingsButton, self.libraryButton, self.sortButton]) {
         button.tintColor = UIColor.labelColor;
         [button.widthAnchor constraintEqualToConstant:36.0].active = YES;
@@ -575,17 +636,33 @@ static UIAlertAction *YTKACEMenuAction(
 }
 
 - (void)segmentChanged {
+    NSInteger tab = self.segmentedControl.selectedSegmentIndex;
+    YTKACESetPreferenceObject(@"YTKACEDownloadsTab", @(tab));
+    self.layoutMode = YTKACEStoredMode(@"Layout", tab, 3);
+    self.sortMode = YTKACEStoredMode(@"Sort", tab, 4);
+    [self applyLayoutButtonImage];
+    [self applySortButtonImage];
+    [self.collectionView.collectionViewLayout invalidateLayout];
     [self reloadFiles];
+}
+
+- (void)applySortButtonImage {
+    NSArray *assets = @[@"sort_down", @"sort_up", @"a-z", @"z-a"];
+    NSArray *symbols = @[@"arrow.down.circle", @"arrow.up.circle",
+                         @"a.circle", @"z.circle"];
+    NSUInteger index = (NSUInteger)MAX(0, MIN(self.sortMode, 3));
+    [self.sortButton setImage:
+        [[YTKACEAssetImage(assets[index], symbols[index])
+            imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]
+            imageWithAlignmentRectInsets:UIEdgeInsetsMake(-1.0, -1.0, -1.0, -1.0)]
+                     forState:UIControlStateNormal];
 }
 
 - (void)toggleSort {
     self.sortMode = (self.sortMode + 1) % 4;
-    NSArray *assets = @[@"sort_down", @"sort_up", @"a-z", @"z-a"];
-    NSArray *symbols = @[@"arrow.down.circle", @"arrow.up.circle", @"a.circle", @"z.circle"];
-    [self.sortButton setImage:[YTKACEAssetImage(assets[(NSUInteger)self.sortMode],
-                                                symbols[(NSUInteger)self.sortMode])
-        imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]
-                       forState:UIControlStateNormal];
+    YTKACEStoreMode(@"Sort", self.segmentedControl.selectedSegmentIndex,
+                    self.sortMode);
+    [self applySortButtonImage];
     [self reloadFiles];
 }
 
@@ -604,6 +681,8 @@ static UIAlertAction *YTKACEMenuAction(
 
 - (void)toggleLayout {
     self.layoutMode = (self.layoutMode + 1) % 3;
+    YTKACEStoreMode(@"Layout", self.segmentedControl.selectedSegmentIndex,
+                    self.layoutMode);
     [self applyLayoutButtonImage];
     [self.collectionView.collectionViewLayout invalidateLayout];
     [self.collectionView reloadData];
@@ -661,6 +740,7 @@ minimumInteritemSpacingForSectionAtIndex:(NSInteger)section {
     [url getResourceValue:&size forKey:NSURLFileSizeKey error:nil];
     cell.layoutMode = self.layoutMode;
     cell.representedPath = url.path;
+    cell.watchedRatio = YTKACEDownloadProgressRatio(url);
     cell.nameLabel.text = url.lastPathComponent.stringByDeletingPathExtension;
     cell.metadataLabel.text = [NSByteCountFormatter stringFromByteCount:size.longLongValue
                                                               countStyle:NSByteCountFormatterCountStyleFile];

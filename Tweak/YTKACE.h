@@ -2,6 +2,7 @@
 
 @class UIView;
 @class CALayer;
+@class UIImage;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -23,6 +24,7 @@ void YTKACEInstallFixPlaybackHooks(void);
 void YTKACEInstallProgressBarHooks(void);
 void YTKACEApplyProgressStyleToBar(UIView *bar);
 void YTKACEStyleProgressLayer(CALayer *layer, CGFloat trackWidth);
+UIImage *YTKACEProgressFillImage(CGFloat width, CGFloat height);
 void YTKACEInstallStreamingHooks(void);
 void YTKACEInstallShortsHooks(void);
 void YTKACEInstallSideloadCompatibilityHooks(void);

@@ -161,6 +161,45 @@ static UIImage *YTKACEGradientStrip(CGFloat width, CGFloat height) {
     return strip;
 }
 
+UIImage *YTKACEProgressFillImage(CGFloat width, CGFloat height) {
+    CGSize size = CGSizeMake(MAX(width, 1.0), MAX(height, 1.0));
+    NSInteger style = YTKACEProgressStyle();
+    UIColor *start = nil;
+    UIColor *end = nil;
+    if (style == 1) {
+        start = YTKACEMainColor();
+        end = start;
+    } else if (style == 2) {
+        start = YTKACEMainColor();
+        end = YTKACEStoredColor(YTKACEProgressGradientColorKey, start);
+    } else {
+        start = [UIColor colorWithRed:1.0 green:0.0 blue:0.0 alpha:1.0];
+        end = [UIColor colorWithRed:1.0 green:0.29 blue:0.16 alpha:1.0];
+    }
+    NSString *key = [NSString stringWithFormat:@"fill|%.0f|%.0f|%ld|%@|%@",
+                     size.width, size.height, (long)style, start, end];
+    UIImage *cached = YTKACEStripCache[key];
+    if (cached != nil) return cached;
+    UIGraphicsImageRenderer *renderer =
+        [[UIGraphicsImageRenderer alloc] initWithSize:size];
+    UIImage *image = [renderer imageWithActions:
+        ^(UIGraphicsImageRendererContext *context) {
+        CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+        NSArray *colors = @[(id)start.CGColor, (id)end.CGColor];
+        CGFloat locations[] = {0.0, 1.0};
+        CGGradientRef gradient = CGGradientCreateWithColors(
+            space, (__bridge CFArrayRef)colors, locations);
+        CGContextDrawLinearGradient(context.CGContext, gradient, CGPointZero,
+                                    CGPointMake(size.width, 0.0), 0);
+        CGGradientRelease(gradient);
+        CGColorSpaceRelease(space);
+    }];
+    if (YTKACEStripCache == nil) YTKACEStripCache = [NSMutableDictionary dictionary];
+    if (YTKACEStripCache.count > 40) [YTKACEStripCache removeAllObjects];
+    YTKACEStripCache[key] = image;
+    return image;
+}
+
 static UIView *YTKACEBarAncestor(UIView *view) {
     UIView *node = view;
     while (node != nil) {
@@ -291,7 +330,6 @@ static void YTKACEApplyLayerFill(CALayer *layer, UIColor *colour,
         layer.backgroundColor = reference;
         return;
     }
-    // CALayer will not draw a pattern colour, so paint the strip into contents.
     CGFloat track = CGRectGetWidth(layer.superlayer.bounds);
     if (track < width) track = width;
     UIImage *fill = YTKACEThumbBarImage(width, height, track);
@@ -383,7 +421,6 @@ static void YTKACEForceBarColor(id receiver) {
     if (![receiver respondsToSelector:setter]) return;
     UIColor *colour = YTKACEPlayedColorForView(receiver);
     if (CGColorGetPattern(colour.CGColor) != NULL) {
-        // a pattern colour is not usable by YouTube's drawing code
         colour = YTKACEMainColor();
     }
     ((void (*)(id, SEL, id))objc_msgSend)(receiver, setter, colour);
@@ -685,8 +722,6 @@ static void YTKACEThumbContainerLayout(id node, SEL selector) {
 static IMP OriginalInlineScrubberLayout;
 static IMP OriginalInlinePostScrubberLayout;
 
-// The inline (muted preview) player uses UISlider subclasses, so its thumb is
-// tinted rather than being a YTPlayerBarScrubberDotDecorationView.
 static void YTKACETintInlineSliders(UIView *view, NSUInteger depth) {
     if (view == nil || depth > 4) return;
     if ([view isKindOfClass:UISlider.class]) {

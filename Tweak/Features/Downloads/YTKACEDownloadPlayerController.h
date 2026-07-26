@@ -2,6 +2,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+FOUNDATION_EXPORT CGFloat YTKACEDownloadProgressRatio(NSURL *URL);
+
 @class AVPlayer;
 
 extern NSNotificationName const YTKACEDownloadPlaybackDidChangeNotification;

@@ -108,6 +108,7 @@ static NSArray<YTKACESubtitleCue *> *YTKACEReadSubtitles(NSURL *mediaURL) {
 
 @interface YTKACEDownloadPlaybackSession ()
 @property(nonatomic, strong, readwrite) AVPlayer *player;
+@property(nonatomic, strong) id resumeObserver;
 @property(nonatomic, copy, readwrite, nullable) NSURL *currentURL;
 @property(nonatomic, copy, readwrite) NSArray<NSURL *> *playlist;
 @property(nonatomic, assign, readwrite) NSInteger currentIndex;
@@ -156,6 +157,78 @@ static NSArray<YTKACESubtitleCue *> *YTKACEReadSubtitles(NSURL *mediaURL) {
     return self;
 }
 
+static NSString * const YTKACEResumeKey = @"YTKACEResumePositions";
+
+static NSString *YTKACEResumeIdentifier(NSURL *URL) {
+    NSString *name = URL.lastPathComponent;
+    return name.length != 0 ? name : URL.absoluteString;
+}
+
+static NSTimeInterval YTKACEStoredResume(NSURL *URL) {
+    if (URL == nil) return 0.0;
+    NSDictionary *table =
+        [NSUserDefaults.standardUserDefaults dictionaryForKey:YTKACEResumeKey];
+    id value = table[YTKACEResumeIdentifier(URL)];
+    if ([value isKindOfClass:NSDictionary.class]) {
+        id position = ((NSDictionary *)value)[@"t"];
+        return [position respondsToSelector:@selector(doubleValue)]
+            ? [position doubleValue] : 0.0;
+    }
+    return [value respondsToSelector:@selector(doubleValue)]
+        ? [value doubleValue] : 0.0;
+}
+
+CGFloat YTKACEDownloadProgressRatio(NSURL *URL) {
+    if (URL == nil) return 0.0;
+    NSDictionary *table =
+        [NSUserDefaults.standardUserDefaults dictionaryForKey:YTKACEResumeKey];
+    id value = table[YTKACEResumeIdentifier(URL)];
+    if (![value isKindOfClass:NSDictionary.class]) return 0.0;
+    id position = ((NSDictionary *)value)[@"t"];
+    id duration = ((NSDictionary *)value)[@"d"];
+    if (![position respondsToSelector:@selector(doubleValue)] ||
+        ![duration respondsToSelector:@selector(doubleValue)]) return 0.0;
+    double total = [duration doubleValue];
+    if (total <= 0.0) return 0.0;
+    return (CGFloat)MAX(0.0, MIN(1.0, [position doubleValue] / total));
+}
+
+static void YTKACEStoreResume(NSURL *URL, NSTimeInterval seconds,
+                              NSTimeInterval duration) {
+    if (URL == nil) return;
+    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    NSMutableDictionary *table =
+        [[defaults dictionaryForKey:YTKACEResumeKey] mutableCopy]
+            ?: [NSMutableDictionary dictionary];
+    NSString *identifier = YTKACEResumeIdentifier(URL);
+    if (seconds <= 0.0) {
+        [table removeObjectForKey:identifier];
+    } else {
+        table[identifier] = @{@"t": @(seconds), @"d": @(duration)};
+        if (table.count > 300) {
+            NSArray *keys = table.allKeys;
+            for (NSUInteger i = 0; i + 200 < keys.count; i++) {
+                [table removeObjectForKey:keys[i]];
+            }
+        }
+    }
+    [defaults setObject:table forKey:YTKACEResumeKey];
+}
+
+- (void)rememberPosition {
+    AVPlayerItem *item = self.player.currentItem;
+    if (self.currentURL == nil || item == nil) return;
+    NSTimeInterval position = CMTimeGetSeconds(item.currentTime);
+    NSTimeInterval duration = CMTimeGetSeconds(item.duration);
+    if (!isfinite(position) || position < 0.0) return;
+    if (position < 5.0 || (isfinite(duration) && duration > 0.0 &&
+                           position > duration - 10.0)) {
+        YTKACEStoreResume(self.currentURL, 0.0, 0.0);
+        return;
+    }
+    YTKACEStoreResume(self.currentURL, position, duration);
+}
+
 - (void)configureAudioSession {
     AVAudioSession *session = AVAudioSession.sharedInstance;
     [session setCategory:AVAudioSessionCategoryPlayback
@@ -201,6 +274,7 @@ static NSArray<YTKACESubtitleCue *> *YTKACEReadSubtitles(NSURL *mediaURL) {
 - (void)applicationWillResignActive:(NSNotification *)notification {
     (void)notification;
     self.continueInBackground = self.player.rate != 0.0f;
+    [self rememberPosition];
 }
 
 - (void)applicationDidEnterBackground:(NSNotification *)notification {
@@ -213,6 +287,11 @@ static NSArray<YTKACESubtitleCue *> *YTKACEReadSubtitles(NSURL *mediaURL) {
 }
 
 - (void)dealloc {
+    [self rememberPosition];
+    if (self.resumeObserver != nil) {
+        [self.player removeTimeObserver:self.resumeObserver];
+        self.resumeObserver = nil;
+    }
     [NSNotificationCenter.defaultCenter removeObserver:self];
 }
 
@@ -225,9 +304,16 @@ static NSArray<YTKACESubtitleCue *> *YTKACEReadSubtitles(NSURL *mediaURL) {
         return;
     }
     if (![self.currentURL isEqual:URL]) {
+        [self rememberPosition];
         self.currentURL = URL;
         [self.player replaceCurrentItemWithPlayerItem:
             [AVPlayerItem playerItemWithURL:URL]];
+        NSTimeInterval resume = YTKACEStoredResume(URL);
+        if (resume > 0.0) {
+            [self.player seekToTime:CMTimeMakeWithSeconds(resume, 600)
+                    toleranceBefore:kCMTimeZero
+                     toleranceAfter:kCMTimeZero];
+        }
     }
     [self play];
     [self notifyChange];
@@ -241,14 +327,28 @@ static NSArray<YTKACESubtitleCue *> *YTKACEReadSubtitles(NSURL *mediaURL) {
     [self notifyChange];
 }
 
+- (void)beginTrackingPosition {
+    if (self.resumeObserver != nil) return;
+    __weak YTKACEDownloadPlaybackSession *weakSelf = self;
+    self.resumeObserver = [self.player
+        addPeriodicTimeObserverForInterval:CMTimeMakeWithSeconds(5.0, 600)
+                                     queue:dispatch_get_main_queue()
+                                usingBlock:^(__unused CMTime time) {
+        YTKACEDownloadPlaybackSession *strongSelf = weakSelf;
+        if (strongSelf.player.rate != 0.0f) [strongSelf rememberPosition];
+    }];
+}
+
 - (void)play {
     [self configureAudioSession];
+    [self beginTrackingPosition];
     [self.player play];
     self.player.rate = MAX(0.25f, MIN(self.playbackRate, 5.0f));
     [self notifyChange];
 }
 
 - (void)pause {
+    [self rememberPosition];
     [self.player pause];
     [self notifyChange];
 }
@@ -326,6 +426,7 @@ static NSArray<YTKACESubtitleCue *> *YTKACEReadSubtitles(NSURL *mediaURL) {
     if (notification.object != self.player.currentItem) {
         return;
     }
+    YTKACEStoreResume(self.currentURL, 0.0, 0.0);
     if (self.pauseAtEnd) {
         self.pauseAtEnd = NO;
         [self pause];
