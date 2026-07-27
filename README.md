@@ -127,3 +127,5 @@ To build only the tweak package, run the **Deb** workflow. It produces the `.deb
 YTKACE is available under the [MIT License](LICENSE).
 
 Bundled FFmpeg libraries remain covered by their respective LGPL licenses.
+
+Uses SponsorBlock and DeArrow data from https://sponsor.ajay.app/ — licensed under CC BY-NC-SA 4.0
