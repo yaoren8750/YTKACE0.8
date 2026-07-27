@@ -11,6 +11,7 @@
 
 #import <AVFoundation/AVFoundation.h>
 #import <AVKit/AVKit.h>
+#import <math.h>
 #import <objc/message.h>
 
 static NSString *const YTKACEDownloadLibraryChanged =
@@ -220,7 +221,8 @@ static UIAlertAction *YTKACEMenuAction(
 }
 
 - (void)setWatchedRatio:(CGFloat)watchedRatio {
-    _watchedRatio = MAX(0.0, MIN(1.0, watchedRatio));
+    _watchedRatio = isfinite(watchedRatio)
+        ? MAX(0.0, MIN(1.0, watchedRatio)) : 0.0;
     self.progressTrack.hidden = _watchedRatio <= 0.001;
     [self setNeedsLayout];
 }
@@ -229,14 +231,25 @@ static UIAlertAction *YTKACEMenuAction(
     if (self.progressTrack.hidden) return;
     CGFloat height = 3.0;
     CGRect thumbnail = self.thumbnailView.bounds;
+    CGFloat trackWidth = CGRectGetWidth(thumbnail);
+    CGFloat trackHeight = CGRectGetHeight(thumbnail);
+    if (!isfinite(trackWidth) || !isfinite(trackHeight) ||
+        trackWidth <= 0.0 || trackHeight < height) {
+        self.progressTrack.frame = CGRectZero;
+        self.progressFill.frame = CGRectZero;
+        return;
+    }
     self.progressTrack.frame = CGRectMake(0.0,
-                                          CGRectGetHeight(thumbnail) - height,
-                                          CGRectGetWidth(thumbnail), height);
-    CGFloat width = CGRectGetWidth(self.progressTrack.bounds) * self.watchedRatio;
+                                          trackHeight - height,
+                                          trackWidth, height);
+    CGFloat ratio = isfinite(self.watchedRatio)
+        ? MAX(0.0, MIN(1.0, self.watchedRatio)) : 0.0;
+    CGFloat width = trackWidth * ratio;
+    if (!isfinite(width)) width = 0.0;
+    width = MAX(0.0, MIN(trackWidth, width));
     self.progressFill.frame = CGRectMake(0.0, 0.0, width, height);
     if (width >= 1.0) {
-        self.progressFill.image = YTKACEProgressFillImage(
-            CGRectGetWidth(self.progressTrack.bounds), height);
+        self.progressFill.image = YTKACEProgressFillImage(trackWidth, height);
     }
     [self.thumbnailView bringSubviewToFront:self.progressTrack];
 }

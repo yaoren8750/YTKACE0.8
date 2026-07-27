@@ -1,10 +1,12 @@
 #import "YTKACEDownloadPlayerController.h"
 #import "../../Runtime/Localization.h"
+#import "../../Runtime/Preferences.h"
 #import "MediaArtwork.h"
 #import "../../Settings/YTKACESettingsPages.h"
 
 #import <AVFoundation/AVFoundation.h>
 #import <MediaPlayer/MediaPlayer.h>
+#import <math.h>
 
 NSNotificationName const YTKACEDownloadPlaybackDidChangeNotification =
     @"YTKACEDownloadPlaybackDidChangeNotification";
@@ -160,51 +162,148 @@ static NSArray<YTKACESubtitleCue *> *YTKACEReadSubtitles(NSURL *mediaURL) {
 static NSString * const YTKACEResumeKey = @"YTKACEResumePositions";
 
 static NSString *YTKACEResumeIdentifier(NSURL *URL) {
+    if (URL == nil) return @"";
+    NSString *path = URL.URLByStandardizingPath.path;
+    NSString *root = YTKACEApplicationSupportDirectory()
+        .URLByStandardizingPath.path;
+    NSString *prefix = [root stringByAppendingString:@"/"];
+    if (path.length != 0 && [path hasPrefix:prefix]) {
+        return [@"v2|" stringByAppendingString:
+            [path substringFromIndex:prefix.length]];
+    }
+    NSString *identity = path.length != 0 ? path : URL.absoluteString;
+    return [@"v2|external|" stringByAppendingString:identity ?: @""];
+}
+
+static NSString *YTKACELegacyResumeIdentifier(NSURL *URL) {
     NSString *name = URL.lastPathComponent;
     return name.length != 0 ? name : URL.absoluteString;
 }
 
-static NSTimeInterval YTKACEStoredResume(NSURL *URL) {
-    if (URL == nil) return 0.0;
-    NSDictionary *table =
-        [NSUserDefaults.standardUserDefaults dictionaryForKey:YTKACEResumeKey];
-    id value = table[YTKACEResumeIdentifier(URL)];
-    if ([value isKindOfClass:NSDictionary.class]) {
-        id position = ((NSDictionary *)value)[@"t"];
-        return [position respondsToSelector:@selector(doubleValue)]
-            ? [position doubleValue] : 0.0;
+static void YTKACEWriteResumeTable(NSUserDefaults *defaults,
+                                   NSDictionary *table) {
+    [defaults setObject:table forKey:YTKACEResumeKey];
+}
+
+static NSDictionary *YTKACEValidatedResumeRecord(NSURL *URL,
+                                                  double *legacyPosition) {
+    if (legacyPosition != NULL) *legacyPosition = 0.0;
+    if (URL == nil) return nil;
+    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    NSMutableDictionary *table =
+        [[defaults dictionaryForKey:YTKACEResumeKey] mutableCopy];
+    if (table == nil) return nil;
+    NSString *identifier = YTKACEResumeIdentifier(URL);
+    NSString *legacyIdentifier = YTKACELegacyResumeIdentifier(URL);
+    NSString *sourceIdentifier = identifier;
+    id value = table[identifier];
+    if (value == nil && legacyIdentifier.length != 0) {
+        sourceIdentifier = legacyIdentifier;
+        value = table[legacyIdentifier];
     }
-    return [value respondsToSelector:@selector(doubleValue)]
-        ? [value doubleValue] : 0.0;
+    if (value == nil) return nil;
+
+    if (![value isKindOfClass:NSDictionary.class]) {
+        double position = [value respondsToSelector:@selector(doubleValue)]
+            ? [value doubleValue] : NAN;
+        if (!isfinite(position) || position <= 0.0) {
+            [table removeObjectForKey:sourceIdentifier];
+            YTKACEWriteResumeTable(defaults, table);
+            return nil;
+        }
+        if (legacyPosition != NULL) *legacyPosition = position;
+        return nil;
+    }
+
+    NSDictionary *record = (NSDictionary *)value;
+    id positionValue = record[@"t"];
+    id durationValue = record[@"d"];
+    if (![positionValue respondsToSelector:@selector(doubleValue)] ||
+        ![durationValue respondsToSelector:@selector(doubleValue)]) {
+        [table removeObjectForKey:sourceIdentifier];
+        YTKACEWriteResumeTable(defaults, table);
+        return nil;
+    }
+    double position = [positionValue doubleValue];
+    double duration = [durationValue doubleValue];
+    BOOL completed = [record[@"c"] respondsToSelector:@selector(boolValue)] &&
+        [record[@"c"] boolValue];
+    BOOL valid = isfinite(position) && isfinite(duration) &&
+        duration > 0.0 && position >= 0.0 && position <= duration &&
+        (completed || position > 0.0);
+    if (!valid) {
+        [table removeObjectForKey:sourceIdentifier];
+        YTKACEWriteResumeTable(defaults, table);
+        return nil;
+    }
+
+    NSDictionary *normalized = @{
+        @"t": @(completed ? 0.0 : position),
+        @"d": @(duration),
+        @"c": @(completed),
+        @"v": @2
+    };
+    if (![sourceIdentifier isEqualToString:identifier] ||
+        ![normalized isEqualToDictionary:record]) {
+        [table removeObjectForKey:sourceIdentifier];
+        if (legacyIdentifier.length != 0 &&
+            ![legacyIdentifier isEqualToString:identifier]) {
+            [table removeObjectForKey:legacyIdentifier];
+        }
+        table[identifier] = normalized;
+        YTKACEWriteResumeTable(defaults, table);
+    }
+    return normalized;
+}
+
+static NSTimeInterval YTKACEStoredResume(NSURL *URL) {
+    double legacyPosition = 0.0;
+    NSDictionary *record =
+        YTKACEValidatedResumeRecord(URL, &legacyPosition);
+    if (record == nil) return legacyPosition;
+    if ([record[@"c"] boolValue]) return 0.0;
+    double position = [record[@"t"] doubleValue];
+    return isfinite(position) && position > 0.0 ? position : 0.0;
 }
 
 CGFloat YTKACEDownloadProgressRatio(NSURL *URL) {
-    if (URL == nil) return 0.0;
-    NSDictionary *table =
-        [NSUserDefaults.standardUserDefaults dictionaryForKey:YTKACEResumeKey];
-    id value = table[YTKACEResumeIdentifier(URL)];
-    if (![value isKindOfClass:NSDictionary.class]) return 0.0;
-    id position = ((NSDictionary *)value)[@"t"];
-    id duration = ((NSDictionary *)value)[@"d"];
-    if (![position respondsToSelector:@selector(doubleValue)] ||
-        ![duration respondsToSelector:@selector(doubleValue)]) return 0.0;
-    double total = [duration doubleValue];
-    if (total <= 0.0) return 0.0;
-    return (CGFloat)MAX(0.0, MIN(1.0, [position doubleValue] / total));
+    NSDictionary *record = YTKACEValidatedResumeRecord(URL, NULL);
+    if (record == nil) return 0.0;
+    if ([record[@"c"] boolValue]) return 1.0;
+    double position = [record[@"t"] doubleValue];
+    double duration = [record[@"d"] doubleValue];
+    if (!isfinite(position) || !isfinite(duration) || duration <= 0.0 ||
+        position < 0.0 || position > duration) return 0.0;
+    double ratio = position / duration;
+    if (!isfinite(ratio)) return 0.0;
+    return (CGFloat)MAX(0.0, MIN(1.0, ratio));
 }
 
 static void YTKACEStoreResume(NSURL *URL, NSTimeInterval seconds,
-                              NSTimeInterval duration) {
+                              NSTimeInterval duration, BOOL completed) {
     if (URL == nil) return;
     NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
     NSMutableDictionary *table =
         [[defaults dictionaryForKey:YTKACEResumeKey] mutableCopy]
             ?: [NSMutableDictionary dictionary];
     NSString *identifier = YTKACEResumeIdentifier(URL);
-    if (seconds <= 0.0) {
+    NSString *legacyIdentifier = YTKACELegacyResumeIdentifier(URL);
+    if (legacyIdentifier.length != 0 &&
+        ![legacyIdentifier isEqualToString:identifier]) {
+        [table removeObjectForKey:legacyIdentifier];
+    }
+    BOOL validDuration = isfinite(duration) && duration > 0.0;
+    BOOL validPosition = isfinite(seconds) && seconds >= 0.0 &&
+        validDuration && seconds <= duration;
+    if (!validDuration || (!completed && (!validPosition || seconds <= 0.0))) {
         [table removeObjectForKey:identifier];
     } else {
-        table[identifier] = @{@"t": @(seconds), @"d": @(duration)};
+        table[identifier] = @{
+            @"t": @(completed ? 0.0 : seconds),
+            @"d": @(duration),
+            @"c": @(completed),
+            @"v": @2
+        };
         if (table.count > 300) {
             NSArray *keys = table.allKeys;
             for (NSUInteger i = 0; i + 200 < keys.count; i++) {
@@ -212,7 +311,36 @@ static void YTKACEStoreResume(NSURL *URL, NSTimeInterval seconds,
             }
         }
     }
-    [defaults setObject:table forKey:YTKACEResumeKey];
+    YTKACEWriteResumeTable(defaults, table);
+}
+
+static void YTKACERemoveResume(NSURL *URL) {
+    if (URL == nil) return;
+    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    NSMutableDictionary *table =
+        [[defaults dictionaryForKey:YTKACEResumeKey] mutableCopy];
+    if (table == nil) return;
+    [table removeObjectForKey:YTKACEResumeIdentifier(URL)];
+    [table removeObjectForKey:YTKACELegacyResumeIdentifier(URL)];
+    YTKACEWriteResumeTable(defaults, table);
+}
+
+static BOOL YTKACEStoredResumeIsCompleted(NSURL *URL) {
+    NSDictionary *record = YTKACEValidatedResumeRecord(URL, NULL);
+    return [record[@"c"] boolValue];
+}
+
+static void YTKACEStoreCompleted(NSURL *URL, NSTimeInterval duration,
+                                 NSTimeInterval fallbackDuration) {
+    NSTimeInterval total = duration;
+    if (!isfinite(total) || total <= 0.0) total = fallbackDuration;
+    if (!isfinite(total) || total <= 0.0) {
+        NSDictionary *record = YTKACEValidatedResumeRecord(URL, NULL);
+        total = [record[@"d"] doubleValue];
+    }
+    if (isfinite(total) && total > 0.0) {
+        YTKACEStoreResume(URL, 0.0, total, YES);
+    }
 }
 
 - (void)rememberPosition {
@@ -221,12 +349,20 @@ static void YTKACEStoreResume(NSURL *URL, NSTimeInterval seconds,
     NSTimeInterval position = CMTimeGetSeconds(item.currentTime);
     NSTimeInterval duration = CMTimeGetSeconds(item.duration);
     if (!isfinite(position) || position < 0.0) return;
-    if (position < 5.0 || (isfinite(duration) && duration > 0.0 &&
-                           position > duration - 10.0)) {
-        YTKACEStoreResume(self.currentURL, 0.0, 0.0);
+    if (!isfinite(duration) || duration <= 0.0 || position > duration) {
         return;
     }
-    YTKACEStoreResume(self.currentURL, position, duration);
+    if (position < 5.0) {
+        if (!YTKACEStoredResumeIsCompleted(self.currentURL)) {
+            YTKACERemoveResume(self.currentURL);
+        }
+        return;
+    }
+    if (position >= MAX(0.0, duration - 10.0)) {
+        YTKACEStoreCompleted(self.currentURL, duration, position);
+        return;
+    }
+    YTKACEStoreResume(self.currentURL, position, duration, NO);
 }
 
 - (void)configureAudioSession {
@@ -426,7 +562,9 @@ static void YTKACEStoreResume(NSURL *URL, NSTimeInterval seconds,
     if (notification.object != self.player.currentItem) {
         return;
     }
-    YTKACEStoreResume(self.currentURL, 0.0, 0.0);
+    NSTimeInterval duration = CMTimeGetSeconds(self.player.currentItem.duration);
+    NSTimeInterval position = CMTimeGetSeconds(self.player.currentTime);
+    YTKACEStoreCompleted(self.currentURL, duration, position);
     if (self.pauseAtEnd) {
         self.pauseAtEnd = NO;
         [self pause];

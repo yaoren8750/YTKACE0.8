@@ -91,21 +91,6 @@ static NSDictionary *YTKACEStepper(NSString *title,
     };
 }
 
-static NSDictionary *YTKACESegmented(NSString *title,
-                                      NSString *key,
-                                      NSArray<NSString *> *titles,
-                                      NSArray *values,
-                                      NSUInteger defaultIndex) {
-    return @{
-        @"type": @"segmented",
-        @"title": YTKACELocalized(title),
-        @"key": key,
-        @"titles": YTKACELocalizedList(titles),
-        @"values": values,
-        @"default": @(defaultIndex)
-    };
-}
-
 static NSDictionary *YTKACESegmentedStacked(NSString *title,
                                             NSString *key,
                                             NSArray<NSString *> *titles,
@@ -1098,6 +1083,9 @@ UIViewController *YTKACEMakeCellularQualityController(void) {
 UIViewController *YTKACEMakeSponsorBlockController(void) {
     NSMutableArray *sections = [NSMutableArray arrayWithObject:@[
         YTKACEToggle(@"Enable", YTKACESponsorBlockKey, @"", @""),
+        YTKACEPicker(@"Skip Alerts", @"YTKACESponsorNotificationMode",
+                     @[@"Skip + Unskip", @"Skip Only", @"Silent"],
+                     @[@0, @1, @2], 0, @"", @""),
         YTKACEToggle(@"Audio Notification", @"AudioNotificationOnSkip", @"", @""),
         YTKACESlider(@"Skip Alert Duration", @"YTKACESponsorSkipAlertDuration",
                      1.0, 10.0, 1.0, 4.0),
@@ -1124,10 +1112,11 @@ UIViewController *YTKACEMakeSponsorBlockController(void) {
          YTKACESponsorCategoryDefinitions()) {
         NSString *category = definition[@"id"];
         [sections addObject:@[
-            YTKACESegmented(@"Behavior", YTKACESponsorBehaviorKey(category),
-                            @[@"Skip", @"Ask", @"Show", @"Off"],
-                            @[@0, @1, @3, @2],
-                            [category isEqualToString:@"sponsor"] ? 0 : 2),
+            YTKACEPicker(@"Behavior", YTKACESponsorBehaviorKey(category),
+                         @[@"Auto-skip", @"Ask", @"Show Marker", @"Disabled"],
+                         @[@0, @1, @3, @2],
+                         [category isEqualToString:@"sponsor"] ? 0 : 3,
+                         @"", @""),
             YTKACEColor(@"Segment Color", YTKACESponsorColorKey(category),
                         definition[@"color"])
         ]];

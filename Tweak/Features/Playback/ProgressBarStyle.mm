@@ -4,6 +4,7 @@
 
 #import <UIKit/UIKit.h>
 #import <QuartzCore/QuartzCore.h>
+#import <math.h>
 #import <objc/message.h>
 #import <objc/runtime.h>
 
@@ -162,6 +163,8 @@ static UIImage *YTKACEGradientStrip(CGFloat width, CGFloat height) {
 }
 
 UIImage *YTKACEProgressFillImage(CGFloat width, CGFloat height) {
+    if (!isfinite(width) || width <= 0.0) width = 1.0;
+    if (!isfinite(height) || height <= 0.0) height = 1.0;
     CGSize size = CGSizeMake(MAX(width, 1.0), MAX(height, 1.0));
     NSInteger style = YTKACEProgressStyle();
     UIColor *start = nil;

@@ -71,13 +71,25 @@ void YTKACEApplyAppearance(UIViewController *controller) {
             target.controller = controller;
             objc_setAssociatedObject(controller, YTKACEDismissTargetKey, target,
                                      OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-            UIImage *chevron = [UIImage systemImageNamed:@"chevron.backward"];
+            UIImageSymbolConfiguration *symbolConfiguration =
+                [UIImageSymbolConfiguration configurationWithPointSize:17.0
+                                                                  weight:UIImageSymbolWeightSemibold];
+            UIImage *chevron =
+                [UIImage systemImageNamed:@"chevron.backward"
+                        withConfiguration:symbolConfiguration];
+            UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
+            UIButtonConfiguration *configuration =
+                [UIButtonConfiguration plainButtonConfiguration];
+            configuration.image = chevron;
+            configuration.title = YTKACELocalized(@"Back");
+            configuration.imagePadding = 4.0;
+            configuration.contentInsets =
+                NSDirectionalEdgeInsetsMake(0.0, 8.0, 0.0, 4.0);
+            button.configuration = configuration;
+            [button addTarget:target action:@selector(pop)
+                forControlEvents:UIControlEventTouchUpInside];
             UIBarButtonItem *back =
-                [[UIBarButtonItem alloc] initWithImage:chevron
-                                                 style:UIBarButtonItemStylePlain
-                                                target:target
-                                                action:@selector(pop)];
-            back.imageInsets = UIEdgeInsetsMake(0.0, 8.0, 0.0, 0.0);
+                [[UIBarButtonItem alloc] initWithCustomView:button];
             controller.navigationItem.leftBarButtonItem = back;
             controller.navigationItem.hidesBackButton = YES;
         }

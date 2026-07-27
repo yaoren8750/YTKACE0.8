@@ -2,6 +2,7 @@
 #import "../../Runtime/Preferences.h"
 
 #import <UIKit/UIKit.h>
+#import <math.h>
 
 @interface YTKACEDownloadProgressItem : NSObject
 @property(nonatomic, copy) NSString *identifier;
@@ -201,8 +202,10 @@
     }
     self.statusLabel.text = [NSString stringWithFormat:@"%@%@%@",
         item.stage, bytes, count];
-    self.percentLabel.text = [NSString stringWithFormat:@"%.0f%%", item.progress * 100.0];
-    [self.progressView setProgress:(float)item.progress animated:YES];
+    double progress = isfinite(item.progress)
+        ? MIN(MAX(item.progress, 0.0), 1.0) : 0.0;
+    self.percentLabel.text = [NSString stringWithFormat:@"%.0f%%", progress * 100.0];
+    [self.progressView setProgress:(float)progress animated:YES];
     self.thumbnailView.image = item.thumbnail;
     self.cancelButton.hidden = [item.stage isEqualToString:@"Merging"] ||
         [item.stage isEqualToString:@"Complete"] ||
@@ -267,7 +270,8 @@
         if (item == nil) return;
         BOOL sameStage = [item.stage isEqualToString:stage];
         item.stage = stage;
-        double nextProgress = MIN(MAX(progress, 0.0), 1.0);
+        double nextProgress = isfinite(progress)
+            ? MIN(MAX(progress, 0.0), 1.0) : 0.0;
         int64_t nextBytes = MAX(downloadedBytes, 0);
         item.progress = sameStage ? MAX(item.progress, nextProgress) : nextProgress;
         item.downloadedBytes = sameStage ? MAX(item.downloadedBytes, nextBytes) : nextBytes;

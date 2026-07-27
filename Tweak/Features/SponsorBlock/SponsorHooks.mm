@@ -133,6 +133,10 @@ static void YTKACESeekToTime(id controller, double time) {
 @end
 
 static void YTKACEShowSponsorSkippedHUD(id controller, double start, NSString *category) {
+    NSInteger notificationMode = YTKACESponsorNotificationMode();
+    if (notificationMode == 2) {
+        return;
+    }
     dispatch_async(dispatch_get_main_queue(), ^{
         UIViewController *presenter = YTKACETopController();
         if (presenter.view.window == nil) {
@@ -155,9 +159,8 @@ static void YTKACEShowSponsorSkippedHUD(id controller, double start, NSString *c
         undo.titleLabel.font = [UIFont systemFontOfSize:14.0 weight:UIFontWeightSemibold];
         [undo addTarget:target action:@selector(unskip)
             forControlEvents:UIControlEventTouchUpInside];
-        UIStackView *content = [[UIStackView alloc] initWithArrangedSubviews:@[
-            label, undo
-        ]];
+        NSArray *views = notificationMode == 0 ? @[label, undo] : @[label];
+        UIStackView *content = [[UIStackView alloc] initWithArrangedSubviews:views];
         content.axis = UILayoutConstraintAxisHorizontal;
         content.alignment = UIStackViewAlignmentCenter;
         content.spacing = 18.0;
@@ -177,8 +180,11 @@ static void YTKACEShowSponsorSkippedHUD(id controller, double start, NSString *c
         target.controller = controller;
         target.startTime = start;
         target.banner = banner;
+        NSTimeInterval duration = notificationMode == 0
+            ? YTKACESponsorUnskipAlertDuration()
+            : YTKACESponsorSkipAlertDuration();
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
-            (int64_t)(YTKACESponsorUnskipAlertDuration() * NSEC_PER_SEC)),
+            (int64_t)(duration * NSEC_PER_SEC)),
             dispatch_get_main_queue(), ^{
                 if (target.banner == banner) {
                     [banner removeFromSuperview];

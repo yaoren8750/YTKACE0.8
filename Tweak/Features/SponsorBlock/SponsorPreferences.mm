@@ -79,6 +79,12 @@ UIColor *YTKACESponsorCategoryColor(NSString *category) {
     return YTKACEColorFromHex(hex);
 }
 
+NSInteger YTKACESponsorNotificationMode(void) {
+    id stored = YTKACEPreferenceObject(@"YTKACESponsorNotificationMode");
+    return [stored respondsToSelector:@selector(integerValue)]
+        ? MAX(0, MIN([stored integerValue], 2)) : 0;
+}
+
 static NSTimeInterval YTKACESponsorDuration(NSString *key) {
     id stored = YTKACEPreferenceObject(key);
     double value = [stored respondsToSelector:@selector(doubleValue)]
