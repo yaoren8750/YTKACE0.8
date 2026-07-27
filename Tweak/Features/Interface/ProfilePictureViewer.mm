@@ -7,7 +7,19 @@
 #import <objc/message.h>
 #import <objc/runtime.h>
 
+static const NSTimeInterval YTKACEAvatarHoldDuration = 0.8;
+static const NSTimeInterval YTKACEAvatarWindowHoldDuration = 0.3;
+
 static const void *YTKACEAvatarGestureAssociation = &YTKACEAvatarGestureAssociation;
+static const void *YTKACEAvatarNodeAssociation = &YTKACEAvatarNodeAssociation;
+
+static id YTKACEAvatarValue(id object, NSString *key);
+
+@interface YTKACEAvatarNodeTarget : NSObject <UIGestureRecognizerDelegate>
++ (instancetype)sharedTarget;
+- (void)avatarNodeHeld:(UILongPressGestureRecognizer *)gesture;
+- (void)presentBestForView:(UIView *)view node:(id)node fallback:(UIImage *)fallback;
+@end
 
 static UIViewController *YTKACEAvatarPresenter(UIView *view) {
     UIResponder *responder = view;
@@ -158,6 +170,62 @@ static UIView *YTKACEAvatarViewAtPoint(UIWindow *window,
     return nil;
 }
 
+static NSString *YTKACEAvatarURLString(id node) {
+    id URL = YTKACEAvatarValue(node, @"URL");
+    NSString *absolute = [URL isKindOfClass:NSURL.class]
+        ? ((NSURL *)URL).absoluteString : nil;
+    if (absolute.length == 0) return nil;
+    BOOL avatarHost = [absolute containsString:@"ggpht"] ||
+        [absolute containsString:@"googleusercontent"];
+    if (!avatarHost) return nil;
+    if ([absolute containsString:@"fcrop64"]) return nil;
+    if ([absolute rangeOfString:@"=s"].location == NSNotFound) return nil;
+    return absolute;
+}
+
+static id YTKACEAvatarNodeInTree(id node, NSUInteger depth) {
+    if (node == nil || depth > 10) return nil;
+    if (YTKACEAvatarURLString(node) != nil) return node;
+    id subnodes = YTKACEAvatarValue(node, @"subnodes");
+    if (![subnodes isKindOfClass:NSArray.class]) {
+        subnodes = YTKACEAvatarValue(node, @"yogaChildren");
+    }
+    if ([subnodes isKindOfClass:NSArray.class]) {
+        for (id child in subnodes) {
+            id found = YTKACEAvatarNodeInTree(child, depth + 1);
+            if (found != nil) return found;
+        }
+    }
+    return nil;
+}
+
+static id YTKACEAvatarNodeUnderPoint(UIView *view, UIWindow *window,
+                                     CGPoint point, NSUInteger depth) {
+    if (view == nil || depth > 30 || view.hidden || view.alpha < 0.05) return nil;
+    CGPoint local = [window convertPoint:point toView:view];
+    if (depth != 0 && ![view pointInside:local withEvent:nil]) return nil;
+
+    id found = YTKACEAvatarNodeInTree(
+        YTKACEAvatarValue(view, @"keepalive_node"), 0);
+    if (found != nil) return found;
+
+    for (UIView *subview in view.subviews.reverseObjectEnumerator) {
+        id found = YTKACEAvatarNodeUnderPoint(subview, window, point, depth + 1);
+        if (found != nil) return found;
+    }
+    return nil;
+}
+
+
+static CGSize YTKACENativePoints(UIImage *image) {
+    CGFloat scale = UIScreen.mainScreen.scale > 0.0
+        ? UIScreen.mainScreen.scale : 2.0;
+    CGFloat pixelsWide = image.size.width * (image.scale > 0.0 ? image.scale : 1.0);
+    CGFloat pixelsHigh = image.size.height * (image.scale > 0.0 ? image.scale : 1.0);
+    if (pixelsWide < 1.0 || pixelsHigh < 1.0) return CGSizeMake(CGFLOAT_MAX, CGFLOAT_MAX);
+    return CGSizeMake(pixelsWide / scale, pixelsHigh / scale);
+}
+
 @interface YTKACEAvatarViewerController : UIViewController
     <UIScrollViewDelegate>
 - (instancetype)initWithImage:(UIImage *)image;
@@ -234,6 +302,10 @@ static UIView *YTKACEAvatarViewAtPoint(UIWindow *window,
         [_imageView.bottomAnchor constraintEqualToAnchor:_scrollView.contentLayoutGuide.bottomAnchor],
         [_imageView.widthAnchor constraintEqualToAnchor:_scrollView.frameLayoutGuide.widthAnchor],
         [_imageView.heightAnchor constraintEqualToAnchor:_scrollView.frameLayoutGuide.heightAnchor],
+        [_imageView.widthAnchor constraintLessThanOrEqualToConstant:
+            YTKACENativePoints(_image).width],
+        [_imageView.heightAnchor constraintLessThanOrEqualToConstant:
+            YTKACENativePoints(_image).height],
         [close.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:16.0],
         [close.topAnchor constraintEqualToAnchor:safe.topAnchor constant:12.0],
         [close.widthAnchor constraintEqualToConstant:38.0],
@@ -317,9 +389,19 @@ static UIView *YTKACEAvatarViewAtPoint(UIWindow *window,
         presenter = presenter.presentedViewController;
     }
     if ([presenter isKindOfClass:YTKACEAvatarViewerController.class]) return;
-    [presenter presentViewController:
-        [[YTKACEAvatarViewerController alloc] initWithImage:image]
-                           animated:YES completion:nil];
+    id node = objc_getAssociatedObject(view, YTKACEAvatarNodeAssociation);
+    if (YTKACEAvatarURLString(node) == nil) {
+        node = YTKACEAvatarValue(view, @"keepalive_node");
+    }
+    if (YTKACEAvatarURLString(node) == nil) {
+        node = YTKACEAvatarNodeUnderPoint(view, window, point, 0);
+    }
+    if (YTKACEAvatarURLString(node) == nil) {
+        node = YTKACEAvatarNodeUnderPoint(window, window, point, 0);
+    }
+    [YTKACEAvatarNodeTarget.sharedTarget presentBestForView:view
+                                                       node:node
+                                                   fallback:image];
 }
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
@@ -332,6 +414,147 @@ static UIView *YTKACEAvatarViewAtPoint(UIWindow *window,
 
 @end
 
+static id YTKACEAvatarValue(id object, NSString *key) {
+    if (object == nil || key.length == 0) return nil;
+    @try {
+        SEL selector = NSSelectorFromString(key);
+        if (![object respondsToSelector:selector]) return nil;
+        return ((id (*)(id, SEL))objc_msgSend)(object, selector);
+    } @catch (__unused NSException *exception) {
+        return nil;
+    }
+}
+
+static NSString *YTKACEHighResAvatarURL(NSString *absolute) {
+    if (absolute.length == 0) return nil;
+    NSRange size = [absolute rangeOfString:@"=s"];
+    if (size.location == NSNotFound) return nil;
+    NSRange tail = NSMakeRange(size.location, absolute.length - size.location);
+    NSRange dash = [absolute rangeOfString:@"-" options:0 range:tail];
+    if (dash.location == NSNotFound) return nil;
+    NSRange digits = NSMakeRange(size.location + 2,
+                                 dash.location - size.location - 2);
+    if (digits.length == 0 || digits.length > 5) return nil;
+    CGRect bounds = UIScreen.mainScreen.bounds;
+    CGFloat longest = MAX(CGRectGetWidth(bounds), CGRectGetHeight(bounds));
+    CGFloat wanted = longest * UIScreen.mainScreen.scale;
+    NSInteger requested = wanted >= 1600.0 ? 2048 : (wanted >= 800.0 ? 1024 : 512);
+    return [absolute stringByReplacingCharactersInRange:digits
+        withString:[NSString stringWithFormat:@"%ld", (long)requested]];
+}
+
+static const void *YTKACEAvatarViewGestureAssociation =
+    &YTKACEAvatarViewGestureAssociation;
+
+
+@implementation YTKACEAvatarNodeTarget
+
++ (instancetype)sharedTarget {
+    static YTKACEAvatarNodeTarget *target;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{ target = [YTKACEAvatarNodeTarget new]; });
+    return target;
+}
+
+- (void)present:(UIImage *)image fromView:(UIView *)view {
+    if (image == nil) return;
+    UIViewController *presenter = YTKACEAvatarPresenter(view);
+    while (presenter.presentedViewController != nil) {
+        presenter = presenter.presentedViewController;
+    }
+    if ([presenter isKindOfClass:YTKACEAvatarViewerController.class]) return;
+    [presenter presentViewController:
+        [[YTKACEAvatarViewerController alloc] initWithImage:image]
+                            animated:YES completion:nil];
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
+        shouldRecognizeSimultaneouslyWithGestureRecognizer:
+            (UIGestureRecognizer *)otherGestureRecognizer {
+    (void)gestureRecognizer;
+    (void)otherGestureRecognizer;
+    return YES;
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
+        shouldBeRequiredToFailByGestureRecognizer:
+            (UIGestureRecognizer *)otherGestureRecognizer {
+    (void)gestureRecognizer;
+    (void)otherGestureRecognizer;
+    return NO;
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
+        shouldRequireFailureOfGestureRecognizer:
+            (UIGestureRecognizer *)otherGestureRecognizer {
+    (void)gestureRecognizer;
+    (void)otherGestureRecognizer;
+    return NO;
+}
+
+- (void)presentBestForView:(UIView *)view node:(id)node fallback:(UIImage *)fallback {
+    NSString *absolute = YTKACEAvatarURLString(node);
+    NSString *upgraded = YTKACEHighResAvatarURL(absolute);
+    if (upgraded == nil) return;
+    __weak UIView *weakView = view;
+    [[NSURLSession.sharedSession dataTaskWithURL:[NSURL URLWithString:upgraded]
+        completionHandler:^(NSData *data, __unused NSURLResponse *response,
+                            __unused NSError *error) {
+        UIImage *full = data.length != 0 ? [UIImage imageWithData:data] : nil;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self present:full ?: fallback fromView:weakView];
+        });
+    }] resume];
+}
+
+- (void)avatarNodeHeld:(UILongPressGestureRecognizer *)gesture {
+    if (gesture.state != UIGestureRecognizerStateBegan ||
+        !YTKACEFeatureEnabled(@"kEnableProfilePictureViewer")) {
+        return;
+    }
+    UIView *view = gesture.view;
+    id node = objc_getAssociatedObject(view, YTKACEAvatarNodeAssociation);
+    if (node == nil) node = YTKACEAvatarValue(view, @"keepalive_node");
+
+    if (YTKACEAvatarURLString(node) == nil) return;
+    UIImpactFeedbackGenerator *feedback = [[UIImpactFeedbackGenerator alloc]
+        initWithStyle:UIImpactFeedbackStyleMedium];
+    [feedback impactOccurred];
+    [self presentBestForView:view node:node fallback:YTKACEAvatarImage(view)];
+}
+
+@end
+
+void YTKACEProfileConsiderDisplayView(UIView *view, id node) {
+    if (view == nil || !YTKACEFeatureEnabled(@"kEnableProfilePictureViewer")) return;
+    if (![[view description] containsString:@"ELMImageNode-View"]) return;
+    if (node != nil) {
+        objc_setAssociatedObject(view, YTKACEAvatarNodeAssociation, node,
+                                 OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    if (objc_getAssociatedObject(view, YTKACEAvatarViewGestureAssociation) != nil) {
+        return;
+    }
+    for (id<UIInteraction> interaction in [view.interactions copy]) {
+        if ([interaction isKindOfClass:UIDragInteraction.class]) {
+            ((UIDragInteraction *)interaction).enabled = NO;
+        }
+    }
+
+    UILongPressGestureRecognizer *gesture = [[UILongPressGestureRecognizer alloc]
+        initWithTarget:YTKACEAvatarNodeTarget.sharedTarget
+                action:@selector(avatarNodeHeld:)];
+    gesture.minimumPressDuration = YTKACEAvatarHoldDuration;
+    gesture.cancelsTouchesInView = NO;
+    gesture.delaysTouchesBegan = NO;
+    gesture.delaysTouchesEnded = NO;
+    gesture.delegate = YTKACEAvatarNodeTarget.sharedTarget;
+    [view addGestureRecognizer:gesture];
+    view.userInteractionEnabled = YES;
+    objc_setAssociatedObject(view, YTKACEAvatarViewGestureAssociation, gesture,
+                             OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
 static void YTKACEAttachAvatarGesture(UIWindow *window) {
     if (window == nil ||
         objc_getAssociatedObject(window, YTKACEAvatarGestureAssociation) != nil) {
@@ -340,7 +563,7 @@ static void YTKACEAttachAvatarGesture(UIWindow *window) {
     UILongPressGestureRecognizer *gesture = [[UILongPressGestureRecognizer alloc]
         initWithTarget:YTKACEAvatarTarget.sharedTarget
                 action:@selector(avatarHeld:)];
-    gesture.minimumPressDuration = 1.0;
+    gesture.minimumPressDuration = YTKACEAvatarWindowHoldDuration;
     gesture.cancelsTouchesInView = NO;
     gesture.delegate = YTKACEAvatarTarget.sharedTarget;
     [window addGestureRecognizer:gesture];

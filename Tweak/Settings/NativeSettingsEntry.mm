@@ -1,4 +1,5 @@
 #import "YTKACESettingsPages.h"
+#import "../Runtime/Localization.h"
 #import "YTKACERootOptionsController.h"
 #import "YTKACEDownloadsController.h"
 #import "../Runtime/Hooking.h"
@@ -53,6 +54,23 @@ static NSArray *YTKACEOrderedGroupCategories(id receiver, SEL selector, NSUInteg
         ((id (*)(id, SEL, NSUInteger))OriginalOrderedGroupCategories)(receiver, selector, type);
 }
 
+static NSString *YTKACENativeSettingsSubtitle(NSString *title) {
+    static NSDictionary<NSString *, NSString *> *subtitles;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        subtitles = @{
+            @"Downloads": @"Saved videos, audio and Shorts",
+            @"Player Controls": @"Speed, loop, gestures and overlay buttons",
+            @"SponsorBlock": @"Skip sponsors and swap clickbait with DeArrow",
+            @"Tab Bar": @"Choose and reorder the bottom tabs",
+            @"Gestures": @"Double tap, hold to seek and pinch",
+            @"itzzace": @"Developer"
+        };
+    });
+    NSString *value = subtitles[title];
+    return value != nil ? YTKACELocalized(value) : nil;
+}
+
 static id YTKACENativeSettingsItem(NSString *title,
                                    id settingsController,
                                    YTKACENativeBuilder builder) {
@@ -75,6 +93,15 @@ static id YTKACENativeSettingsItem(NSString *title,
         [navigation pushViewController:controller animated:YES];
         return navigation != nil;
     };
+    SEL described = NSSelectorFromString(
+        @"itemWithTitle:titleDescription:accessibilityIdentifier:detailTextBlock:"
+         "selectBlock:");
+    NSString *subtitle = YTKACENativeSettingsSubtitle(title);
+    if (subtitle.length != 0 && [itemClass respondsToSelector:described]) {
+        return ((id (*)(id, SEL, id, id, id, id, id))objc_msgSend)(
+            itemClass, described, title, subtitle, @"YTKACENativeSettingsItem",
+            detail, select);
+    }
     return ((id (*)(id, SEL, id, id, id, id))objc_msgSend)(
         itemClass, selector, title, @"YTKACENativeSettingsItem", detail, select);
 }
@@ -111,7 +138,8 @@ static void YTKACEUpdateNativeSettingsSection(id receiver, SEL selector,
         @{@"title": @"Streaming", @"builder": [^UIViewController *{ return YTKACEMakeStreamingOptionsController(); } copy]},
         @{@"title": @"Navigation Bar", @"builder": [^UIViewController *{ return YTKACEMakeNavigationOptionsController(); } copy]},
         @{@"title": @"Shorts", @"builder": [^UIViewController *{ return YTKACEMakeShortsOptionsController(); } copy]},
-        @{@"title": @"Miscellaneous", @"builder": [^UIViewController *{ return YTKACEMakeMiscOptionsController(); } copy]}
+        @{@"title": @"Miscellaneous", @"builder": [^UIViewController *{ return YTKACEMakeMiscOptionsController(); } copy]},
+        @{@"title": @"itzzace", @"builder": [^UIViewController *{ return YTKACEMakeCreditsController(); } copy]}
     ];
     NSMutableArray *items = [NSMutableArray array];
     for (NSDictionary *definition in definitions) {

@@ -8,6 +8,7 @@
 #import "../Features/Downloads/YTKACEBackupManager.h"
 #import "../Features/Downloads/YTKACEMediaImporter.h"
 #import "../Features/SponsorBlock/SponsorPreferences.h"
+#import "../Features/SponsorBlock/DeArrow.h"
 
 #import <objc/runtime.h>
 #import <objc/message.h>
@@ -1102,6 +1103,21 @@ UIViewController *YTKACEMakeSponsorBlockController(void) {
                      1.0, 10.0, 1.0, 4.0)
     ]];
     NSMutableArray<NSString *> *titles = [NSMutableArray arrayWithObject:@"MAIN"];
+
+    [sections addObject:@[
+        YTKACEToggleDetail(@"Thumbnails",
+                           @"Replace clickbait thumbnails with community-picked "
+                            "frames from DeArrow. Videos without a submission are "
+                            "left untouched.",
+                           YTKACEDeArrowThumbModeKey),
+        YTKACEToggleDetail(@"Titles",
+                           @"Replace clickbait titles with community-written ones "
+                            "from DeArrow. Videos without a submission keep their "
+                            "original title.",
+                           YTKACEDeArrowTitlesKey)
+    ]];
+    [titles addObject:@"DEARROW"];
+
     for (NSDictionary<NSString *, NSString *> *definition in
          YTKACESponsorCategoryDefinitions()) {
         NSString *category = definition[@"id"];

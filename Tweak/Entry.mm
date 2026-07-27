@@ -1,5 +1,6 @@
 #import "YTKACE.h"
 #import "Features/Downloads/DownloadLog.h"
+#import "Features/SponsorBlock/DeArrow.h"
 #import "Runtime/Preferences.h"
 
 #import <UIKit/UIKit.h>
@@ -8,13 +9,14 @@
 #define YTKACE_COMBINED_SABR 0
 #endif
 
-NSString * const YTKACEVersion = @"0.6.8";
+NSString * const YTKACEVersion = @"0.7.2";
 
 static void YTKACEInstallModules(void) {
     YTKACEInstallSideloadCompatibilityHooks();
     YTKACEInstallCastCompatibilityHooks();
     YTKACEInstallAdsHooks();
     YTKACEInstallSponsorBlockHooks();
+    YTKACEInstallDeArrow();
     YTKACEInstallOLEDHooks();
     YTKACEInstallStartupHooks();
     YTKACEInstallPremiumLogoHooks();

@@ -6,9 +6,13 @@
 #import <objc/message.h>
 #import <objc/runtime.h>
 
+
+
 static IMP OriginalCommentNodeDidLoad;
 static IMP OriginalCommentViewSetNode;
 static IMP OriginalCommentUIViewDidMove;
+static IMP OriginalCommentNodeSetFrame;
+static const void *YTKACEStoredCommentAssociation = &YTKACEStoredCommentAssociation;
 static const void *YTKACECommentTextAssociation = &YTKACECommentTextAssociation;
 static const void *YTKACECommentNodeAssociation = &YTKACECommentNodeAssociation;
 static const void *YTKACECommentGestureAssociation = &YTKACECommentGestureAssociation;
@@ -149,26 +153,36 @@ static UIViewController *YTKACEControllerForView(UIView *view) {
     return controller;
 }
 
+static NSString *YTKACEStoredCommentForView(UIView *view) {
+    for (UIView *candidate = view; candidate != nil;
+         candidate = candidate.superview) {
+        NSString *direct = objc_getAssociatedObject(
+            candidate, YTKACEStoredCommentAssociation);
+        if ([direct isKindOfClass:NSString.class] && direct.length != 0) {
+            return direct;
+        }
+        id node = objc_getAssociatedObject(candidate, YTKACECommentNodeAssociation);
+        if (node == nil) node = YTKACEObjectMessage(candidate, @"keepalive_node");
+        for (NSUInteger depth = 0; node != nil && depth < 14; depth++) {
+            NSString *stored = objc_getAssociatedObject(
+                node, YTKACEStoredCommentAssociation);
+            if ([stored isKindOfClass:NSString.class] && stored.length != 0) {
+                return stored;
+            }
+            node = YTKACEObjectMessage(node, @"supernode");
+        }
+    }
+    return nil;
+}
+
 static NSString *YTKACECommentTextForView(UIView *view) {
+    NSString *stored = YTKACEStoredCommentForView(view);
+    if (stored.length != 0) return stored;
     UIView *candidate = view;
     for (NSUInteger depth = 0; candidate != nil && depth < 8; depth++) {
         NSString *text = YTKACECommentTextInView(candidate, YES, 0);
         if (text.length != 0) {
             return text;
-        }
-        candidate = candidate.superview;
-    }
-    candidate = view;
-    for (NSUInteger depth = 0; candidate != nil && depth < 6; depth++) {
-        NSString *token = [NSString stringWithFormat:@"%@ %@ %@",
-            NSStringFromClass(candidate.class) ?: @"",
-            candidate.accessibilityIdentifier ?: @"",
-            [candidate description] ?: @""];
-        if (YTKACEIsCommentToken(token)) {
-            NSString *text = YTKACECommentTextInView(candidate, NO, 0);
-            if (text.length != 0) {
-                return text;
-            }
         }
         candidate = candidate.superview;
     }
@@ -242,6 +256,62 @@ static void YTKACEAttachCommentGesture(UIView *view, id node) {
                              gesture, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
+static BOOL YTKACEIsCommentContainer(id node) {
+    NSString *description = [node description];
+    return [description containsString:@"id.ui.comment_cell"] ||
+           [description containsString:@"id.ui.comment_thread"] ||
+           [description containsString:@"comment_reply"];
+}
+
+static NSString *YTKACENodeIdentifier(id node) {
+    NSString *identifier = YTKACEObjectMessage(node, @"accessibilityIdentifier");
+    if ([identifier isKindOfClass:NSString.class] && identifier.length != 0) {
+        return identifier;
+    }
+    @try {
+        id value = [node valueForKey:@"_accessibilityIdentifier"];
+        return [value isKindOfClass:NSString.class] ? value : nil;
+    } @catch (__unused NSException *exception) {
+        return nil;
+    }
+}
+
+static void YTKACEStoreCommentOnContainers(id node, NSString *text) {
+    id supernodes = YTKACEObjectMessage(node, @"supernodes");
+    NSArray *all = nil;
+    if ([supernodes respondsToSelector:@selector(allObjects)]) {
+        all = [supernodes allObjects];
+    } else if ([supernodes isKindOfClass:NSArray.class]) {
+        all = supernodes;
+    }
+    for (id container in all) {
+        if (!YTKACEIsCommentContainer(container)) continue;
+        objc_setAssociatedObject(container, YTKACEStoredCommentAssociation,
+                                 text, OBJC_ASSOCIATION_COPY_NONATOMIC);
+        UIView *rendered = YTKACEObjectMessage(container, @"view");
+        if ([rendered isKindOfClass:UIView.class]) {
+            objc_setAssociatedObject(rendered, YTKACEStoredCommentAssociation,
+                                     text, OBJC_ASSOCIATION_COPY_NONATOMIC);
+        }
+        return;
+    }
+}
+
+static void YTKACECommentNodeSetFrame(id receiver, SEL selector, CGRect frame) {
+    if (OriginalCommentNodeSetFrame != NULL) {
+        ((void (*)(id, SEL, CGRect))OriginalCommentNodeSetFrame)(receiver, selector,
+                                                                 frame);
+    }
+    NSString *identifier = YTKACENodeIdentifier(receiver);
+    if (identifier.length == 0) return;
+    if (![identifier isEqualToString:@"id.comment.content.label"]) return;
+    id attributed = YTKACEObjectMessage(receiver, @"attributedText");
+    NSString *text = YTKACECleanCommentText(
+        YTKACEObjectMessage(attributed, @"string"));
+    if (text.length == 0) return;
+    YTKACEStoreCommentOnContainers(receiver, text);
+}
+
 static void YTKACECommentNodeDidLoad(id receiver, SEL selector) {
     if (OriginalCommentNodeDidLoad != NULL) {
         ((void (*)(id, SEL))OriginalCommentNodeDidLoad)(receiver, selector);
@@ -281,11 +351,13 @@ static void YTKACECommentViewSetNode(UIView *receiver, SEL selector, id node) {
     if (OriginalCommentViewSetNode != NULL) {
         ((void (*)(id, SEL, id))OriginalCommentViewSetNode)(receiver, selector, node);
     }
+    YTKACEProfileConsiderDisplayView(receiver, node);
     NSString *token = [NSString stringWithFormat:@"%@ %@ %@",
         NSStringFromClass(receiver.class) ?: @"",
         [receiver description] ?: @"", [node description] ?: @""];
     NSString *text = YTKACECommentTextInNode(node, 0);
-    if (YTKACEIsCommentToken(token) || text.length != 0) {
+    BOOL tokenMatch = YTKACEIsCommentToken(token);
+    if (tokenMatch || text.length != 0) {
         YTKACEAttachCommentGesture(receiver, node);
     }
 }
@@ -311,4 +383,6 @@ void YTKACEInstallCopyCommentHooks(void) {
         (IMP)YTKACECommentViewSetNode, &OriginalCommentViewSetNode);
     YTKACEInstallInstanceHook(@"UIView", @"didMoveToWindow",
         (IMP)YTKACECommentUIViewDidMove, &OriginalCommentUIViewDidMove);
+    YTKACEInstallInstanceHook(@"ASDisplayNode", @"setFrame:",
+        (IMP)YTKACECommentNodeSetFrame, &OriginalCommentNodeSetFrame);
 }
