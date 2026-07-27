@@ -48,7 +48,59 @@ static BOOL YTKACECastClass(Class cls) {
         [name hasPrefix:@"CADP"] || [name hasPrefix:@"GCK"];
 }
 
-static void YTKACEInstallDirectCastHooks(void) {
+static NSString *YTKACECastCacheKey(void) {
+    NSString *version = NSBundle.mainBundle
+        .infoDictionary[@"CFBundleShortVersionString"] ?: @"unknown";
+    return [@"YTKACECastHookTargets." stringByAppendingString:version];
+}
+
+static BOOL YTKACEApplyDirectCastHook(Class cls, SEL selector) {
+    if (cls == Nil || selector == NULL) return NO;
+    static NSSet<NSString *> *yesSelectors;
+    static NSSet<NSString *> *noSelectors;
+    static NSSet<NSString *> *statusSelectors;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        yesSelectors = [NSSet setWithArray:@[
+            @"hasSufficientLocalNetworkPermissions",
+            @"isLocalNetworkPermissionAllowed",
+            @"wasLocalNetworkPermissionAllowed"
+        ]];
+        noSelectors = [NSSet setWithArray:@[
+            @"shouldShowLocalNetworkPermissionPrompt",
+            @"shouldPresentLocalNetworkAccessPermissionDialog"
+        ]];
+        statusSelectors = [NSSet setWithArray:@[
+            @"lastKnownPermissionsStatus",
+            @"localNetworkPermissionsStatus"
+        ]];
+    });
+    Method method = class_getInstanceMethod(cls, selector);
+    if (method == NULL) return NO;
+    NSString *name = NSStringFromSelector(selector);
+    IMP replacement = NULL;
+    if ([yesSelectors containsObject:name]) replacement = (IMP)YTKACECastYes;
+    if ([noSelectors containsObject:name]) replacement = (IMP)YTKACECastNo;
+    if ([statusSelectors containsObject:name]) {
+        replacement = (IMP)YTKACECastAllowedStatus;
+    }
+    if (replacement == NULL) return NO;
+    method_setImplementation(method, replacement);
+    return YES;
+}
+
+static void YTKACEApplyCachedCastHooks(void) {
+    NSArray<NSString *> *targets = [NSUserDefaults.standardUserDefaults
+        arrayForKey:YTKACECastCacheKey()];
+    for (NSString *target in targets) {
+        NSArray<NSString *> *parts = [target componentsSeparatedByString:@"|"];
+        if (parts.count != 2) continue;
+        YTKACEApplyDirectCastHook(NSClassFromString(parts[0]),
+                                  NSSelectorFromString(parts[1]));
+    }
+}
+
+static void YTKACEDiscoverCastHooks(void) {
     int classCapacity = objc_getClassList(NULL, 0);
     if (classCapacity <= 0) return;
     Class *classes = (__unsafe_unretained Class *)calloc(
@@ -58,19 +110,7 @@ static void YTKACEInstallDirectCastHooks(void) {
     if (classes == NULL) return;
     int classCount = objc_getClassList(classes, classCapacity);
     if (classCount > classCapacity) classCount = classCapacity;
-    SEL yesSelectors[] = {
-        NSSelectorFromString(@"hasSufficientLocalNetworkPermissions"),
-        NSSelectorFromString(@"isLocalNetworkPermissionAllowed"),
-        NSSelectorFromString(@"wasLocalNetworkPermissionAllowed")
-    };
-    SEL noSelectors[] = {
-        NSSelectorFromString(@"shouldShowLocalNetworkPermissionPrompt"),
-        NSSelectorFromString(@"shouldPresentLocalNetworkAccessPermissionDialog")
-    };
-    SEL statusSelectors[] = {
-        NSSelectorFromString(@"lastKnownPermissionsStatus"),
-        NSSelectorFromString(@"localNetworkPermissionsStatus")
-    };
+    NSMutableOrderedSet<NSString *> *targets = [NSMutableOrderedSet orderedSet];
     for (int classIndex = 0; classIndex < classCount; classIndex++) {
         Class cls = classes[classIndex];
         if (cls == Nil || !YTKACECastClass(cls)) continue;
@@ -79,35 +119,44 @@ static void YTKACEInstallDirectCastHooks(void) {
         for (unsigned int methodIndex = 0; methodIndex < methodCount; methodIndex++) {
             Method method = methods[methodIndex];
             SEL selector = method_getName(method);
-            for (size_t index = 0;
-                 index < sizeof(yesSelectors) / sizeof(yesSelectors[0]);
-                 index++) {
-                if (selector == yesSelectors[index]) {
-                    method_setImplementation(method, (IMP)YTKACECastYes);
-                }
-            }
-            for (size_t index = 0;
-                 index < sizeof(noSelectors) / sizeof(noSelectors[0]);
-                 index++) {
-                if (selector == noSelectors[index]) {
-                    method_setImplementation(method, (IMP)YTKACECastNo);
-                }
-            }
-            for (size_t index = 0;
-                 index < sizeof(statusSelectors) / sizeof(statusSelectors[0]);
-                 index++) {
-                if (selector == statusSelectors[index]) {
-                    method_setImplementation(method, (IMP)YTKACECastAllowedStatus);
-                }
+            NSString *selectorName = NSStringFromSelector(selector);
+            if ([selectorName isEqualToString:
+                    @"hasSufficientLocalNetworkPermissions"] ||
+                [selectorName isEqualToString:
+                    @"isLocalNetworkPermissionAllowed"] ||
+                [selectorName isEqualToString:
+                    @"wasLocalNetworkPermissionAllowed"] ||
+                [selectorName isEqualToString:
+                    @"shouldShowLocalNetworkPermissionPrompt"] ||
+                [selectorName isEqualToString:
+                    @"shouldPresentLocalNetworkAccessPermissionDialog"] ||
+                [selectorName isEqualToString:
+                    @"lastKnownPermissionsStatus"] ||
+                [selectorName isEqualToString:
+                    @"localNetworkPermissionsStatus"]) {
+                [targets addObject:[NSString stringWithFormat:@"%@|%@",
+                    NSStringFromClass(cls), selectorName]];
             }
         }
         free(methods);
     }
     free(classes);
+    NSArray<NSString *> *result = targets.array;
+    [NSUserDefaults.standardUserDefaults setObject:result
+                                            forKey:YTKACECastCacheKey()];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        for (NSString *target in result) {
+            NSArray<NSString *> *parts =
+                [target componentsSeparatedByString:@"|"];
+            if (parts.count != 2) continue;
+            YTKACEApplyDirectCastHook(NSClassFromString(parts[0]),
+                                      NSSelectorFromString(parts[1]));
+        }
+    });
 }
 
 static void YTKACERefreshCastHooks(void) {
-    YTKACEInstallDirectCastHooks();
+    YTKACEApplyCachedCastHooks();
     YTKACEInstallInstanceHook(@"MDXRoutePresentationController",
                               @"hasSufficientLocalNetworkPermissions",
                               (IMP)YTKACECastYes,
@@ -207,23 +256,25 @@ void YTKACEInstallCastCompatibilityHooks(void) {
                          queue:NSOperationQueue.mainQueue
                     usingBlock:^(__unused NSNotification *notification) {
                         YTKACERefreshCastHooks();
-                        dispatch_after(
-                            dispatch_time(DISPATCH_TIME_NOW,
-                                          500 * NSEC_PER_MSEC),
-                            dispatch_get_main_queue(), ^{
-                                YTKACEStartCastDiscovery();
+                        YTKACEStartCastDiscovery();
+                        if ([NSUserDefaults.standardUserDefaults
+                                arrayForKey:YTKACECastCacheKey()].count != 0) {
+                            return;
+                        }
+                        static dispatch_once_t discoveryToken;
+                        dispatch_once(&discoveryToken, ^{
+                            for (NSNumber *delay in @[@0.5, @4.0]) {
+                                dispatch_after(
+                                    dispatch_time(DISPATCH_TIME_NOW,
+                                      (int64_t)(delay.doubleValue *
+                                                NSEC_PER_SEC)),
+                                    dispatch_get_global_queue(
+                                      QOS_CLASS_UTILITY, 0), ^{
+                                        YTKACEDiscoverCastHooks();
+                                    }
+                                );
                             }
-                        );
+                        });
                     }];
-        for (NSNumber *delay in @[@0.5, @2.0, @4.0]) {
-            dispatch_after(
-                dispatch_time(DISPATCH_TIME_NOW,
-                              (int64_t)(delay.doubleValue * NSEC_PER_SEC)),
-                dispatch_get_main_queue(), ^{
-                    YTKACERefreshCastHooks();
-                    YTKACEStartCastDiscovery();
-                }
-            );
-        }
     });
 }

@@ -212,7 +212,9 @@ BOOL YTKACEPreferenceNeedsRestart(NSString *key) {
         @"kEnableLegacyQSelection",
         @"kEnableHideStatusBar",
         @"kEnabledStartupPage",
-        @"kEnablefixvideoplayback"
+        @"kEnablefixvideoplayback",
+        @"kEnableKeepCaptionOn",
+        @"kEnableHideNotificationBill"
     ] containsObject:key];
 }
 

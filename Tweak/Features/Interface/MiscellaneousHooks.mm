@@ -22,8 +22,6 @@ static const void *YTKACEAppliedCaptionAssociation =
     &YTKACEAppliedCaptionAssociation;
 static NSHashTable *YTKACECaptionControllers;
 
-static void YTKACEInstallCurrentMiniPlayerHooks(void);
-
 static NSString *YTKACECaptionTrackKey(id track) {
     if (track == nil) {
         return nil;
@@ -456,14 +454,51 @@ static BOOL YTKACEClassNameMatches(NSString *className,
     return NO;
 }
 
-static void YTKACEInstallCurrentMiniPlayerHooks(void) {
-    if (!NSThread.isMainThread) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            YTKACEInstallCurrentMiniPlayerHooks();
-        });
-        return;
+static NSString *YTKACEMiscDiscoveryCacheKey(void) {
+    NSString *version = NSBundle.mainBundle
+        .infoDictionary[@"CFBundleShortVersionString"] ?: @"unknown";
+    return [@"YTKACEMiscHookTargets." stringByAppendingString:version];
+}
+
+static void YTKACEApplyMiscDiscoveryTarget(NSString *target) {
+    NSArray<NSString *> *parts = [target componentsSeparatedByString:@"|"];
+    if (parts.count != 3) return;
+    NSString *kind = parts[0];
+    NSString *className = parts[1];
+    NSString *selectorName = parts[2];
+    if ([kind isEqualToString:@"mini"]) {
+        YTKACEInstallMiscBool(className, selectorName,
+                              (IMP)YTKACEMiniPlayerValue);
+    } else if ([kind isEqualToString:@"miniPause"]) {
+        YTKACEInstallMiscBool(className, selectorName,
+                              (IMP)YTKACEMiniPlayerPauseOnlyValue);
+    } else if ([kind isEqualToString:@"captionBool"]) {
+        YTKACEInstallMiscBool(className, selectorName,
+                              (IMP)YTKACECaptionValue);
+    } else if ([kind isEqualToString:@"captionSetter"]) {
+        YTKACEInstallMiscSetter(className, selectorName,
+                                (IMP)YTKACECaptionSetter);
+    } else if ([kind isEqualToString:@"captionTracks"]) {
+        YTKACEInstallMiscObjectSetter(className, selectorName,
+                                      (IMP)YTKACECaptionTracksSetter);
+    } else if ([kind isEqualToString:@"captionTrack"]) {
+        YTKACEInstallMiscObjectSetter(className, selectorName,
+                                      (IMP)YTKACECaptionTrackSetter);
+    } else if ([kind isEqualToString:@"captionSelected"]) {
+        YTKACEInstallCaptionSelectedSetter(className);
     }
-    NSArray *selectors = @[
+}
+
+static void YTKACEApplyCachedMiscDiscovery(void) {
+    NSArray<NSString *> *targets = [NSUserDefaults.standardUserDefaults
+        arrayForKey:YTKACEMiscDiscoveryCacheKey()];
+    for (NSString *target in targets) {
+        YTKACEApplyMiscDiscoveryTarget(target);
+    }
+}
+
+static void YTKACEDiscoverMiscHooks(void) {
+    NSSet<NSString *> *miniSelectors = [NSSet setWithArray:@[
         @"isPlayableInMiniPlayer", @"isPlayableInMiniplayer",
         @"miniplayerEnabled", @"isMiniplayerDisabled",
         @"miniPlayerDisabled", @"isMiniplayerUnavailable",
@@ -475,41 +510,8 @@ static void YTKACEInstallCurrentMiniPlayerHooks(void) {
         @"hasShouldShowMiniPlayer", @"hasDisplayMiniPlayer",
         @"hasMiniplayer", @"isMiniplayer", @"allowDockingForMiniplayer",
         @"blockedForKidsContent", @"hasBlockedForKidsContent"
-    ];
-    int count = objc_getClassList(NULL, 0);
-    if (count <= 0) {
-        return;
-    }
-    Class *classes = (Class *)calloc((size_t)count, sizeof(Class));
-    count = objc_getClassList(classes, count);
-    NSArray *classTokens = @[
-        @"mini", @"playability", @"playerresponse",
-        @"watch", @"playerhotconfig", @"globalconfig"
-    ];
-    for (int index = 0; index < count; index++) {
-        NSString *className = NSStringFromClass(classes[index]);
-        if (!YTKACEClassNameMatches(className, classTokens)) {
-            continue;
-        }
-        YTKACEInstallMiscBool(className,
-            @"isMiniplayerRendererPlaybackModePauseOnly",
-            (IMP)YTKACEMiniPlayerPauseOnlyValue);
-        for (NSString *selectorName in selectors) {
-            YTKACEInstallMiscBool(className, selectorName,
-                                  (IMP)YTKACEMiniPlayerValue);
-        }
-    }
-    free(classes);
-}
-
-static void YTKACEInstallCurrentCaptionHooks(void) {
-    if (!NSThread.isMainThread) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            YTKACEInstallCurrentCaptionHooks();
-        });
-        return;
-    }
-    NSArray *getters = @[
+    ]];
+    NSSet<NSString *> *captionGetters = [NSSet setWithArray:@[
         @"captionsEnabled", @"areCaptionsEnabled", @"captionEnabled",
         @"isCaptionEnabled", @"closedCaptionsEnabled",
         @"closedCaptioningEnabled", @"captionsEnabledWhenAvailable",
@@ -519,8 +521,8 @@ static void YTKACEInstallCurrentCaptionHooks(void) {
         @"captionVisibilityPersistenceEnabled",
         @"captionLanguagePersistenceEnabled", @"respectDeviceCaptionSetting",
         @"inlinePlaybackCaptionHiddenOnStartEnabled"
-    ];
-    NSArray *setters = @[
+    ]];
+    NSSet<NSString *> *captionSetters = [NSSet setWithArray:@[
         @"setCaptionsEnabled:", @"setClosedCaptionsEnabled:",
         @"setCaptionEnabled:", @"setIsCaptionEnabled:",
         @"setCaptionsActive:", @"setCaptionVisible:",
@@ -528,57 +530,79 @@ static void YTKACEInstallCurrentCaptionHooks(void) {
         @"setDeviceCaptionsOn:", @"setCaptionsDisabled:",
         @"setCaptionsHidden:", @"setPersistentUserCaptionVisibility:",
         @"setUserPreferredCaptionVisibilityAsHidden:"
-    ];
-    NSArray *trackLists = @[
+    ]];
+    NSSet<NSString *> *trackLists = [NSSet setWithArray:@[
         @"setAvailableCaptionTracks:", @"setCaptionTrackArray:",
         @"setUserVisibleCaptionTracks:", @"setTracklistCaptionTracks:"
-    ];
-    NSArray *trackSetters = @[
+    ]];
+    NSSet<NSString *> *trackSetters = [NSSet setWithArray:@[
         @"setActiveCaptionTrack:", @"setCaptionTrack:"
+    ]];
+    NSArray<NSString *> *miniTokens = @[
+        @"mini", @"playability", @"playerresponse",
+        @"watch", @"playerhotconfig", @"globalconfig"
     ];
-    int count = objc_getClassList(NULL, 0);
-    if (count <= 0) {
-        return;
-    }
-    Class *classes = (Class *)calloc((size_t)count, sizeof(Class));
-    count = objc_getClassList(classes, count);
-    NSArray *classTokens = @[
+    NSArray<NSString *> *captionTokens = @[
         @"caption", @"player", @"playback", @"watch", @"globalconfig"
     ];
+    int count = objc_getClassList(NULL, 0);
+    if (count <= 0) return;
+    Class *classes = (Class *)calloc((size_t)count, sizeof(Class));
+    if (classes == NULL) return;
+    count = objc_getClassList(classes, count);
+    NSMutableOrderedSet<NSString *> *targets = [NSMutableOrderedSet orderedSet];
     for (int index = 0; index < count; index++) {
-        NSString *className = NSStringFromClass(classes[index]);
-        if (!YTKACEClassNameMatches(className, classTokens)) {
-            continue;
+        Class cls = classes[index];
+        NSString *className = NSStringFromClass(cls);
+        BOOL mini = YTKACEClassNameMatches(className, miniTokens);
+        BOOL caption = YTKACEClassNameMatches(className, captionTokens);
+        if (!mini && !caption) continue;
+        unsigned int methodCount = 0;
+        Method *methods = class_copyMethodList(cls, &methodCount);
+        for (unsigned int methodIndex = 0;
+             methodIndex < methodCount;
+             methodIndex++) {
+            NSString *selectorName = NSStringFromSelector(
+                method_getName(methods[methodIndex])
+            );
+            NSString *kind = nil;
+            if (mini && [selectorName isEqualToString:
+                         @"isMiniplayerRendererPlaybackModePauseOnly"]) {
+                kind = @"miniPause";
+            } else if (mini && [miniSelectors containsObject:selectorName]) {
+                kind = @"mini";
+            } else if (caption &&
+                       [captionGetters containsObject:selectorName]) {
+                kind = @"captionBool";
+            } else if (caption &&
+                       [captionSetters containsObject:selectorName]) {
+                kind = @"captionSetter";
+            } else if (caption &&
+                       [trackLists containsObject:selectorName]) {
+                kind = @"captionTracks";
+            } else if (caption &&
+                       [trackSetters containsObject:selectorName]) {
+                kind = @"captionTrack";
+            } else if (caption && [selectorName isEqualToString:
+                       @"setSelectedCaptionTrack:selectionReason:"]) {
+                kind = @"captionSelected";
+            }
+            if (kind != nil) {
+                [targets addObject:[NSString stringWithFormat:@"%@|%@|%@",
+                    kind, className, selectorName]];
+            }
         }
-        for (NSString *selectorName in getters) {
-            YTKACEInstallMiscBool(className, selectorName,
-                                  (IMP)YTKACECaptionValue);
-        }
-        for (NSString *selectorName in setters) {
-            YTKACEInstallMiscSetter(className, selectorName,
-                                    (IMP)YTKACECaptionSetter);
-        }
-        for (NSString *selectorName in trackLists) {
-            YTKACEInstallMiscObjectSetter(className, selectorName,
-                (IMP)YTKACECaptionTracksSetter);
-        }
-        for (NSString *selectorName in trackSetters) {
-            YTKACEInstallMiscObjectSetter(className, selectorName,
-                (IMP)YTKACECaptionTrackSetter);
-        }
-        YTKACEInstallCaptionSelectedSetter(className);
-    }
-    NSString *controllerClass = @"MLInnerTubeCaptionController";
-    YTKACEInstallClassHook(controllerClass, @"allocWithZone:",
-                          (IMP)YTKACECaptionControllerAlloc,
-                          &OriginalCaptionControllerAlloc);
-    IMP original = NULL;
-    if (YTKACEInstallInstanceHook(controllerClass, @"init",
-                                  (IMP)YTKACECaptionControllerInit,
-                                  &original)) {
-        YTKACEStoreMiscOriginal(controllerClass, @"init", original);
+        free(methods);
     }
     free(classes);
+    NSArray<NSString *> *result = targets.array;
+    [NSUserDefaults.standardUserDefaults setObject:result
+                                    forKey:YTKACEMiscDiscoveryCacheKey()];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        for (NSString *target in result) {
+            YTKACEApplyMiscDiscoveryTarget(target);
+        }
+    });
 }
 
 void YTKACEInstallMiscellaneousHooks(void) {
@@ -662,17 +686,42 @@ void YTKACEInstallMiscellaneousHooks(void) {
                               @"captionTracksArray",
                               (IMP)YTKACECaptionTracks,
                               &OriginalCaptionTracks);
-    static dispatch_once_t scanToken;
-    dispatch_once(&scanToken, ^{
-        for (NSNumber *delay in @[@0.75, @4.0, @10.0]) {
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
-                                         (int64_t)(delay.doubleValue *
-                                                   NSEC_PER_SEC)),
-                           dispatch_get_main_queue(), ^{
-                YTKACEInstallCurrentMiniPlayerHooks();
-                YTKACEInstallCurrentCaptionHooks();
+    NSString *controllerClass = @"MLInnerTubeCaptionController";
+    YTKACEInstallClassHook(controllerClass, @"allocWithZone:",
+                          (IMP)YTKACECaptionControllerAlloc,
+                          &OriginalCaptionControllerAlloc);
+    IMP controllerOriginal = NULL;
+    if (YTKACEInstallInstanceHook(controllerClass, @"init",
+                                  (IMP)YTKACECaptionControllerInit,
+                                  &controllerOriginal)) {
+        YTKACEStoreMiscOriginal(controllerClass, @"init",
+                                controllerOriginal);
+    }
+    YTKACEApplyCachedMiscDiscovery();
+    static dispatch_once_t discoveryObserverToken;
+    dispatch_once(&discoveryObserverToken, ^{
+        [NSNotificationCenter.defaultCenter
+            addObserverForName:UIApplicationDidBecomeActiveNotification
+                        object:nil
+                         queue:nil
+                    usingBlock:^(__unused NSNotification *notification) {
+            if ([NSUserDefaults.standardUserDefaults
+                    arrayForKey:YTKACEMiscDiscoveryCacheKey()].count != 0) {
+                return;
+            }
+            static dispatch_once_t discoveryToken;
+            dispatch_once(&discoveryToken, ^{
+                for (NSNumber *delay in @[@0.5, @5.0]) {
+                    dispatch_after(
+                        dispatch_time(DISPATCH_TIME_NOW,
+                          (int64_t)(delay.doubleValue * NSEC_PER_SEC)),
+                        dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+                            YTKACEDiscoverMiscHooks();
+                        }
+                    );
+                }
             });
-        }
+        }];
     });
 
     for (NSString *selectorName in @[@"showMessageMainThread:", @"showMessage:"]) {

@@ -78,21 +78,25 @@ static id YTKACENativeSettingsItem(NSString *title,
     SEL selector = NSSelectorFromString(
         @"itemWithTitle:accessibilityIdentifier:detailTextBlock:selectBlock:");
     if (itemClass == Nil || ![itemClass respondsToSelector:selector]) return nil;
-    NSString *(^detail)(void) = ^NSString *{ return @"›"; };
-    BOOL (^select)(id, NSUInteger) = ^BOOL(__unused id cell, __unused NSUInteger index) {
-        UIViewController *controller = builder == nil ? nil : builder();
-        if (controller == nil) return NO;
-        SEL push = NSSelectorFromString(@"pushViewController:");
-        if ([settingsController respondsToSelector:push]) {
-            ((void (*)(id, SEL, id))objc_msgSend)(settingsController, push, controller);
-            return YES;
-        }
-        UINavigationController *navigation =
-            [settingsController isKindOfClass:UIViewController.class]
-                ? ((UIViewController *)settingsController).navigationController : nil;
-        [navigation pushViewController:controller animated:YES];
-        return navigation != nil;
-    };
+    NSString *(^detail)(void) = builder == nil
+        ? (NSString *(^)(void))nil
+        : ^NSString *{ return @"›"; };
+    BOOL (^select)(id, NSUInteger) = builder == nil
+        ? (BOOL (^)(id, NSUInteger))nil
+        : ^BOOL(__unused id cell, __unused NSUInteger index) {
+            UIViewController *controller = builder();
+            if (controller == nil) return NO;
+            SEL push = NSSelectorFromString(@"pushViewController:");
+            if ([settingsController respondsToSelector:push]) {
+                ((void (*)(id, SEL, id))objc_msgSend)(settingsController, push, controller);
+                return YES;
+            }
+            UINavigationController *navigation =
+                [settingsController isKindOfClass:UIViewController.class]
+                    ? ((UIViewController *)settingsController).navigationController : nil;
+            [navigation pushViewController:controller animated:YES];
+            return navigation != nil;
+        };
     SEL described = NSSelectorFromString(
         @"itemWithTitle:titleDescription:accessibilityIdentifier:detailTextBlock:"
          "selectBlock:");
@@ -139,7 +143,7 @@ static void YTKACEUpdateNativeSettingsSection(id receiver, SEL selector,
         @{@"title": @"Navigation Bar", @"builder": [^UIViewController *{ return YTKACEMakeNavigationOptionsController(); } copy]},
         @{@"title": @"Shorts", @"builder": [^UIViewController *{ return YTKACEMakeShortsOptionsController(); } copy]},
         @{@"title": @"Miscellaneous", @"builder": [^UIViewController *{ return YTKACEMakeMiscOptionsController(); } copy]},
-        @{@"title": @"itzzace", @"builder": [^UIViewController *{ return YTKACEMakeCreditsController(); } copy]}
+        @{@"title": @"itzzace"}
     ];
     NSMutableArray *items = [NSMutableArray array];
     for (NSDictionary *definition in definitions) {

@@ -116,18 +116,58 @@ static void YTKACESetHideNotificationButton(id receiver,
 }
 
 static void YTKACEInstallNavigationMethodHooks(void) {
-    if (YTKACENavigationOriginals != nil) return;
-    YTKACENavigationOriginals = [NSMutableDictionary dictionary];
+    if (YTKACENavigationOriginals == nil) {
+        YTKACENavigationOriginals = [NSMutableDictionary dictionary];
+    }
+    NSString *version = NSBundle.mainBundle
+        .infoDictionary[@"CFBundleShortVersionString"] ?: @"unknown";
+    NSString *cacheKey =
+        [@"YTKACENavigationHookTargets." stringByAppendingString:version];
     NSDictionary<NSString *, NSValue *> *replacements = @{
-        @"notificationButton": YTKACENavigationIMPValue((IMP)YTKACENotificationButton),
-        @"newNotificationButton": YTKACENavigationIMPValue((IMP)YTKACENotificationButton),
-        @"hideNotificationButton": YTKACENavigationIMPValue((IMP)YTKACEHideNotificationButton),
-        @"setHideNotificationButton:": YTKACENavigationIMPValue((IMP)YTKACESetHideNotificationButton)
+        @"notificationButton":
+            YTKACENavigationIMPValue((IMP)YTKACENotificationButton),
+        @"newNotificationButton":
+            YTKACENavigationIMPValue((IMP)YTKACENotificationButton),
+        @"hideNotificationButton":
+            YTKACENavigationIMPValue((IMP)YTKACEHideNotificationButton),
+        @"setHideNotificationButton:":
+            YTKACENavigationIMPValue((IMP)YTKACESetHideNotificationButton)
     };
+    void (^applyTargets)(NSArray<NSString *> *) =
+        ^(NSArray<NSString *> *targets) {
+            for (NSString *target in targets) {
+                NSArray<NSString *> *parts =
+                    [target componentsSeparatedByString:@"|"];
+                if (parts.count != 2) continue;
+                Class cls = NSClassFromString(parts[0]);
+                SEL selector = NSSelectorFromString(parts[1]);
+                Method method = class_getInstanceMethod(cls, selector);
+                NSValue *replacement = replacements[parts[1]];
+                if (method == NULL || replacement == nil) continue;
+                IMP hook = YTKACENavigationIMP(replacement);
+                IMP original = method_getImplementation(method);
+                if (original == hook) continue;
+                YTKACENavigationOriginals[
+                    YTKACENavigationHookKey(cls, selector)
+                ] = YTKACENavigationIMPValue(original);
+                method_setImplementation(method, hook);
+            }
+        };
+    applyTargets([NSUserDefaults.standardUserDefaults arrayForKey:cacheKey]);
+}
+
+static void YTKACEDiscoverNavigationMethodHooks(void) {
+    NSSet<NSString *> *selectors = [NSSet setWithArray:@[
+        @"notificationButton",
+        @"newNotificationButton",
+        @"hideNotificationButton",
+        @"setHideNotificationButton:"
+    ]];
     int count = objc_getClassList(NULL, 0);
     if (count <= 0) return;
     Class *classes = (Class *)calloc((size_t)count, sizeof(Class));
     count = objc_getClassList(classes, count);
+    NSMutableOrderedSet<NSString *> *targets = [NSMutableOrderedSet orderedSet];
     for (int index = 0; index < count; index++) {
         Class cls = classes[index];
         unsigned int methodCount = 0;
@@ -135,18 +175,24 @@ static void YTKACEInstallNavigationMethodHooks(void) {
         for (unsigned int methodIndex = 0; methodIndex < methodCount; methodIndex++) {
             Method method = methods[methodIndex];
             SEL selector = method_getName(method);
-            NSValue *replacement = replacements[NSStringFromSelector(selector)];
-            if (replacement == nil) continue;
-            IMP original = method_getImplementation(method);
-            IMP hook = YTKACENavigationIMP(replacement);
-            if (original == hook) continue;
-            YTKACENavigationOriginals[YTKACENavigationHookKey(cls, selector)] =
-                YTKACENavigationIMPValue(original);
-            method_setImplementation(method, hook);
+            NSString *selectorName = NSStringFromSelector(selector);
+            if (![selectors containsObject:selectorName]) continue;
+            [targets addObject:[NSString stringWithFormat:@"%@|%@",
+                NSStringFromClass(cls), selectorName]];
         }
         free(methods);
     }
     free(classes);
+    NSString *version = NSBundle.mainBundle
+        .infoDictionary[@"CFBundleShortVersionString"] ?: @"unknown";
+    NSString *cacheKey =
+        [@"YTKACENavigationHookTargets." stringByAppendingString:version];
+    NSArray<NSString *> *result = targets.array;
+    [NSUserDefaults.standardUserDefaults setObject:result forKey:cacheKey];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        YTKACEInstallNavigationMethodHooks();
+        YTKACEApplyNavigationWindows();
+    });
 }
 
 static BOOL YTKACENavigationShouldHide(UIView *view) {
@@ -552,6 +598,21 @@ void YTKACEInstallNavigationVisibilityHooks(void) {
             addObserverForName:UIApplicationDidBecomeActiveNotification
             object:nil queue:NSOperationQueue.mainQueue
             usingBlock:^(__unused NSNotification *notification) {
+                NSString *version = NSBundle.mainBundle
+                    .infoDictionary[@"CFBundleShortVersionString"] ?: @"unknown";
+                NSString *cacheKey = [@"YTKACENavigationHookTargets."
+                    stringByAppendingString:version];
+                if ([NSUserDefaults.standardUserDefaults
+                        arrayForKey:cacheKey].count == 0) {
+                    static dispatch_once_t discoveryToken;
+                    dispatch_once(&discoveryToken, ^{
+                        dispatch_async(
+                            dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+                                YTKACEDiscoverNavigationMethodHooks();
+                            }
+                        );
+                    });
+                }
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
                     (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                         YTKACEApplyNavigationWindows();

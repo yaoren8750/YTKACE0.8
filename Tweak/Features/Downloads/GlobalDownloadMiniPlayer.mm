@@ -133,7 +133,7 @@ static CGFloat YTKACEGlobalTabTop(UIWindow *window) {
         selector:@selector(playbackChanged:)
         name:YTKACEDownloadPlaybackDidStopNotification object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self
-        selector:@selector(playbackChanged:)
+        selector:@selector(applicationBecameActive:)
         name:UIApplicationDidBecomeActiveNotification object:nil];
     return self;
 }
@@ -233,6 +233,12 @@ static CGFloat YTKACEGlobalTabTop(UIWindow *window) {
     dispatch_async(dispatch_get_main_queue(), ^{ [self refresh]; });
 }
 
+- (void)applicationBecameActive:(NSNotification *)notification {
+    (void)notification;
+    if (self.bar == nil) return;
+    dispatch_async(dispatch_get_main_queue(), ^{ [self refresh]; });
+}
+
 - (void)refresh {
     [self buildUI];
     YTKACEDownloadPlaybackSession *session =
@@ -310,7 +316,5 @@ static CGFloat YTKACEGlobalTabTop(UIWindow *window) {
 @end
 
 void YTKACEInstallGlobalDownloadMiniPlayer(void) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [[YTKACEGlobalDownloadMiniPlayer sharedPlayer] refresh];
-    });
+    [YTKACEGlobalDownloadMiniPlayer sharedPlayer];
 }
