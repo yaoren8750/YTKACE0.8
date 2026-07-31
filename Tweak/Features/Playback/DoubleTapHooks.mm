@@ -11,6 +11,31 @@
 static NSMutableDictionary<NSString *, NSValue *> *YTKACEDoubleTapOriginals;
 static const void *YTKACETapSeekHelperKey = &YTKACETapSeekHelperKey;
 
+static BOOL YTKACECommitTapSeek(UIResponder *first, double time) {
+    for (UIResponder *responder = first; responder != nil;
+         responder = responder.nextResponder) {
+        SEL detailed = NSSelectorFromString(@"seekToTime:seekSource:");
+        SEL simple = NSSelectorFromString(@"seekToTime:");
+        SEL legacy = NSSelectorFromString(
+            @"didSeekToTime:toleranceBefore:toleranceAfter:");
+        if ([responder respondsToSelector:detailed]) {
+            ((void (*)(id, SEL, double, NSInteger))objc_msgSend)(
+                responder, detailed, time, 0);
+            return YES;
+        }
+        if ([responder respondsToSelector:simple]) {
+            ((void (*)(id, SEL, double))objc_msgSend)(responder, simple, time);
+            return YES;
+        }
+        if ([responder respondsToSelector:legacy]) {
+            ((void (*)(id, SEL, double, double, double))objc_msgSend)(
+                responder, legacy, time, 0.0, 0.0);
+            return YES;
+        }
+    }
+    return NO;
+}
+
 static double YTKACEMaximumSeekableTime(UIResponder *responder,
                                         NSString **providerName) {
     SEL selector = NSSelectorFromString(@"maximumSeekableTime");
@@ -110,12 +135,13 @@ static BOOL YTKACETapHitsOverlayControl(UIView *view, CGPoint point,
     if (YTKACETapHitsOverlayControl(view, point, NULL)) {
         return;
     }
-    YTKACETapHitsScrubber(view, point, NULL);
+    if (!YTKACETapHitsScrubber(view, point, NULL)) {
+        return;
+    }
     double x = point.x;
     SEL rangeSelector = NSSelectorFromString(@"scrubRangeForScrubX:");
     SEL nativeSeek = NSSelectorFromString(@"fineScrubberDidSeekToTime:");
-    if (![view respondsToSelector:rangeSelector] ||
-        ![view respondsToSelector:nativeSeek]) {
+    if (![view respondsToSelector:rangeSelector]) {
         return;
     }
     double ratio = ((double (*)(id, SEL, double))objc_msgSend)(
@@ -127,16 +153,9 @@ static BOOL YTKACETapHitsOverlayControl(UIView *view, CGPoint point,
         return;
     }
     double time = ratio * duration;
-
-    SEL start = NSSelectorFromString(@"fineScrubberDidStartSeeking");
-    SEL end = NSSelectorFromString(
-        @"fineScrubberDidEndSeekingWithSeekSource:");
-    if ([view respondsToSelector:start]) {
-        ((void (*)(id, SEL))objc_msgSend)(view, start);
-    }
-    ((void (*)(id, SEL, double))objc_msgSend)(view, nativeSeek, time);
-    if ([view respondsToSelector:end]) {
-        ((void (*)(id, SEL, int))objc_msgSend)(view, end, 0);
+    BOOL committed = YTKACECommitTapSeek(view, time);
+    if (!committed && [view respondsToSelector:nativeSeek]) {
+        ((void (*)(id, SEL, double))objc_msgSend)(view, nativeSeek, time);
     }
 }
 
