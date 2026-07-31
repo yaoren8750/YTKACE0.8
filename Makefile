@@ -14,6 +14,7 @@ YTKACE_FILES = \
 	Tweak/UI/Notice.mm \
 	Tweak/UI/OverlayButtonHost.mm \
 	Tweak/Features/Ads/AdsHooks.mm \
+	Tweak/Features/Ads/PromoHooks.mm \
 	Tweak/Features/SponsorBlock/SponsorClient.mm \
 	Tweak/Features/SponsorBlock/SponsorPreferences.mm \
 	Tweak/Features/SponsorBlock/SponsorHooks.mm \
@@ -54,6 +55,7 @@ YTKACE_FILES = \
 	Tweak/Features/Interface/MiscellaneousHooks.mm \
 	Tweak/Features/Interface/CopyCommentHooks.mm \
 	Tweak/Features/Interface/ProfilePictureViewer.mm \
+	Tweak/Features/Interface/NativeShareHooks.mm \
 	Tweak/Features/Interface/NavigationVisibility.mm \
 	Tweak/Settings/SettingsEntry.mm \
 	Tweak/Settings/NativeSettingsEntry.mm \

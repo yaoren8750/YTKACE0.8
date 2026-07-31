@@ -9,7 +9,6 @@
 #import "../Features/Downloads/DownloadLog.h"
 
 #import <objc/runtime.h>
-#import <float.h>
 #import <stdlib.h>
 #import <sys/utsname.h>
 
@@ -157,8 +156,6 @@ void YTKACEApplyAppearance(UIViewController *controller) {
 
 @interface YTKACERootOptionsController ()
 @property(nonatomic, strong) UIView *settingsHeader;
-@property(nonatomic, assign) NSUInteger developerTapCount;
-@property(nonatomic, strong) NSDate *lastDeveloperTap;
 @end
 
 @implementation YTKACERootOptionsController
@@ -175,6 +172,27 @@ void YTKACEApplyAppearance(UIViewController *controller) {
     self.tableView.sectionFooterHeight = 4.0;
     self.settingsHeader = [self makeSettingsHeader];
     self.tableView.tableHeaderView = self.settingsHeader;
+    UILongPressGestureRecognizer *developerHold =
+        [[UILongPressGestureRecognizer alloc]
+            initWithTarget:self action:@selector(handleDeveloperHold:)];
+    developerHold.minimumPressDuration = 3.0;
+    developerHold.cancelsTouchesInView = YES;
+    [self.tableView addGestureRecognizer:developerHold];
+}
+
+- (void)showDownloadLog {
+    [self.navigationController setNavigationBarHidden:NO animated:NO];
+    [self.navigationController pushViewController:
+        [YTKACEDownloadLogController new] animated:YES];
+}
+
+- (void)handleDeveloperHold:(UILongPressGestureRecognizer *)recognizer {
+    if (recognizer.state != UIGestureRecognizerStateBegan) return;
+    NSIndexPath *indexPath = [self.tableView indexPathForRowAtPoint:
+        [recognizer locationInView:self.tableView]];
+    if (indexPath.section == 3 && indexPath.row == 0) {
+        [self showDownloadLog];
+    }
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -439,16 +457,9 @@ void YTKACEApplyAppearance(UIViewController *controller) {
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     if (indexPath.section == 3 && indexPath.row == 0) {
-        NSTimeInterval elapsed = self.lastDeveloperTap == nil
-            ? DBL_MAX : -self.lastDeveloperTap.timeIntervalSinceNow;
-        self.developerTapCount = elapsed <= 1.5 ? self.developerTapCount + 1 : 1;
-        self.lastDeveloperTap = NSDate.date;
-        if (self.developerTapCount >= 3) {
-            self.developerTapCount = 0;
-            [self.navigationController setNavigationBarHidden:NO animated:NO];
-            [self.navigationController pushViewController:
-                [YTKACEDownloadLogController new] animated:YES];
-        }
+        NSURL *URL = [NSURL URLWithString:@"https://github.com/Epic0001/YTKACE"];
+        [UIApplication.sharedApplication openURL:URL options:@{}
+                               completionHandler:nil];
         return;
     }
     UIViewController *controller = nil;

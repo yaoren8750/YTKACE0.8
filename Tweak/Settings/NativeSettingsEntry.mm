@@ -143,7 +143,12 @@ static void YTKACEUpdateNativeSettingsSection(id receiver, SEL selector,
         @{@"title": @"Navigation Bar", @"builder": [^UIViewController *{ return YTKACEMakeNavigationOptionsController(); } copy]},
         @{@"title": @"Shorts", @"builder": [^UIViewController *{ return YTKACEMakeShortsOptionsController(); } copy]},
         @{@"title": @"Miscellaneous", @"builder": [^UIViewController *{ return YTKACEMakeMiscOptionsController(); } copy]},
-        @{@"title": @"itzzace"}
+        @{@"title": @"itzzace", @"builder": [^UIViewController *{
+            NSURL *URL = [NSURL URLWithString:@"https://github.com/Epic0001/YTKACE"];
+            [UIApplication.sharedApplication openURL:URL options:@{}
+                                   completionHandler:nil];
+            return nil;
+        } copy]}
     ];
     NSMutableArray *items = [NSMutableArray array];
     for (NSDictionary *definition in definitions) {

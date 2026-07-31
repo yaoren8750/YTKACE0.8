@@ -2,11 +2,167 @@
 #import "../../Runtime/Hooking.h"
 #import "../../Runtime/Preferences.h"
 
+#import <UIKit/UIKit.h>
 #import <math.h>
 #import <objc/runtime.h>
+#import <objc/message.h>
 #import <string.h>
 
 static NSMutableDictionary<NSString *, NSValue *> *YTKACEDoubleTapOriginals;
+static const void *YTKACETapSeekHelperKey = &YTKACETapSeekHelperKey;
+
+static double YTKACEMaximumSeekableTime(UIResponder *responder,
+                                        NSString **providerName) {
+    SEL selector = NSSelectorFromString(@"maximumSeekableTime");
+    for (NSUInteger depth = 0; responder != nil && depth < 20; depth++) {
+        Method method = class_getInstanceMethod(responder.class, selector);
+        if (method != NULL) {
+            char returnType[16] = {};
+            method_getReturnType(method, returnType, sizeof(returnType));
+            double value = 0.0;
+            if (strcmp(returnType, @encode(double)) == 0) {
+                value = ((double (*)(id, SEL))objc_msgSend)(responder,
+                                                             selector);
+            } else if (strcmp(returnType, @encode(float)) == 0) {
+                value = ((float (*)(id, SEL))objc_msgSend)(responder,
+                                                            selector);
+            }
+            if (isfinite(value) && value > 0.0) {
+                if (providerName != NULL) {
+                    *providerName = NSStringFromClass(responder.class);
+                }
+                return value;
+            }
+        }
+        responder = responder.nextResponder;
+    }
+    return 0.0;
+}
+
+static UIView *YTKACEScrubberDot(UIView *view) {
+    SEL selector = NSSelectorFromString(@"scrubberDot");
+    if ([view respondsToSelector:selector]) {
+        id dot = ((id (*)(id, SEL))objc_msgSend)(view, selector);
+        if ([dot isKindOfClass:UIView.class]) return dot;
+    }
+    NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithArray:view.subviews];
+    while (queue.count != 0) {
+        UIView *candidate = queue.firstObject;
+        [queue removeObjectAtIndex:0];
+        NSString *token = [NSString stringWithFormat:@"%@ %@ %@",
+            NSStringFromClass(candidate.class).lowercaseString,
+            candidate.accessibilityIdentifier.lowercaseString ?: @"",
+            candidate.accessibilityLabel.lowercaseString ?: @""];
+        if ([token containsString:@"scrubber"] &&
+            CGRectGetWidth(candidate.bounds) <= 64.0 &&
+            CGRectGetHeight(candidate.bounds) <= 64.0) {
+            return candidate;
+        }
+        [queue addObjectsFromArray:candidate.subviews];
+    }
+    return nil;
+}
+
+static BOOL YTKACETapHitsScrubber(UIView *view, CGPoint point,
+                                  CGFloat *trackY) {
+    UIView *dot = YTKACEScrubberDot(view);
+    CGFloat centerY = MAX(CGRectGetMinY(view.bounds),
+                          CGRectGetMaxY(view.bounds) - 2.0);
+    if (dot != nil && dot.superview != nil) {
+        centerY = [dot.superview convertPoint:dot.center toView:view].y;
+    }
+    if (trackY != NULL) *trackY = centerY;
+    return fabs(point.y - centerY) <= 14.0;
+}
+
+static BOOL YTKACETapHitsOverlayControl(UIView *view, CGPoint point,
+                                        NSString **controlName) {
+    UIView *candidate = [view hitTest:point withEvent:nil];
+    while (candidate != nil && candidate != view) {
+        if ([candidate isKindOfClass:UIControl.class]) {
+            NSString *token = [NSString stringWithFormat:@"%@ %@ %@",
+                NSStringFromClass(candidate.class).lowercaseString,
+                candidate.accessibilityIdentifier.lowercaseString ?: @"",
+                candidate.accessibilityLabel.lowercaseString ?: @""];
+            BOOL scrubberControl = [token containsString:@"scrub"] ||
+                                   [token containsString:@"progress"] ||
+                                   [token containsString:@"playerbar"];
+            if (!scrubberControl) {
+                if (controlName != NULL) *controlName = token;
+                return YES;
+            }
+        }
+        candidate = candidate.superview;
+    }
+    return NO;
+}
+
+@interface YTKACETapSeekTarget : NSObject <UIGestureRecognizerDelegate>
+@property(nonatomic, weak) UIView *view;
+@end
+
+@implementation YTKACETapSeekTarget
+- (void)tap:(UITapGestureRecognizer *)recognizer {
+    UIView *view = self.view;
+    if (!YTKACEFeatureEnabled(@"kEnableTapToSeek") || view == nil ||
+        CGRectGetWidth(view.bounds) <= 1.0) return;
+    CGPoint point = [recognizer locationInView:view];
+    if (YTKACETapHitsOverlayControl(view, point, NULL)) {
+        return;
+    }
+    YTKACETapHitsScrubber(view, point, NULL);
+    double x = point.x;
+    SEL rangeSelector = NSSelectorFromString(@"scrubRangeForScrubX:");
+    SEL nativeSeek = NSSelectorFromString(@"fineScrubberDidSeekToTime:");
+    if (![view respondsToSelector:rangeSelector] ||
+        ![view respondsToSelector:nativeSeek]) {
+        return;
+    }
+    double ratio = ((double (*)(id, SEL, double))objc_msgSend)(
+        view, rangeSelector, x);
+    if (!isfinite(ratio)) return;
+    ratio = MIN(1.0, MAX(0.0, ratio));
+    double duration = YTKACEMaximumSeekableTime(view, NULL);
+    if (!isfinite(duration) || duration <= 0.0) {
+        return;
+    }
+    double time = ratio * duration;
+
+    SEL start = NSSelectorFromString(@"fineScrubberDidStartSeeking");
+    SEL end = NSSelectorFromString(
+        @"fineScrubberDidEndSeekingWithSeekSource:");
+    if ([view respondsToSelector:start]) {
+        ((void (*)(id, SEL))objc_msgSend)(view, start);
+    }
+    ((void (*)(id, SEL, double))objc_msgSend)(view, nativeSeek, time);
+    if ([view respondsToSelector:end]) {
+        ((void (*)(id, SEL, int))objc_msgSend)(view, end, 0);
+    }
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
+        shouldRecognizeSimultaneouslyWithGestureRecognizer:
+            (UIGestureRecognizer *)otherGestureRecognizer {
+    return YTKACEFeatureEnabled(@"kEnableTapToSeek");
+}
+@end
+
+void YTKACEConfigureTapToSeek(UIView *receiver) {
+    if (receiver == nil) return;
+    YTKACETapSeekTarget *target = objc_getAssociatedObject(
+        receiver, YTKACETapSeekHelperKey);
+    if (target == nil) {
+        target = [YTKACETapSeekTarget new];
+        target.view = receiver;
+        UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc]
+            initWithTarget:target action:@selector(tap:)];
+        tap.cancelsTouchesInView = NO;
+        tap.delegate = target;
+        [receiver addGestureRecognizer:tap];
+        objc_setAssociatedObject(receiver, YTKACETapSeekHelperKey, target,
+                                 OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+}
 
 static NSValue *YTKACEDoubleTapValueForIMP(IMP implementation) {
     return [NSValue value:&implementation withObjCType:@encode(IMP)];
@@ -113,6 +269,50 @@ static NSInteger YTKACEDoubleTapInteger(id receiver,
         : ((NSInteger (*)(id, SEL, id))original)(receiver, selector, config);
 }
 
+static BOOL YTKACETapToSeekDisabled(id receiver, SEL selector) {
+    if (YTKACEFeatureEnabled(@"kEnableTapToSeek")) {
+        return NO;
+    }
+    IMP original = YTKACEDoubleTapOriginal(receiver, selector);
+    return original == NULL
+        ? NO
+        : ((BOOL (*)(id, SEL))original)(receiver, selector);
+}
+
+static BOOL YTKACETapToSeekEnabled(id receiver, SEL selector) {
+    if (YTKACEFeatureEnabled(@"kEnableTapToSeek")) {
+        return YES;
+    }
+    IMP original = YTKACEDoubleTapOriginal(receiver, selector);
+    return original != NULL &&
+        ((BOOL (*)(id, SEL))original)(receiver, selector);
+}
+
+static BOOL YTKACEInstallTapToSeekHook(NSString *className,
+                                       NSString *selectorName,
+                                       IMP replacement,
+                                       BOOL classMethod) {
+    SEL selector = NSSelectorFromString(selectorName);
+    Class cls = NSClassFromString(className);
+    Class target = classMethod ? object_getClass(cls) : cls;
+    Method method = class_getInstanceMethod(target, selector);
+    if (method == NULL) return NO;
+    IMP original = NULL;
+    BOOL installed = classMethod
+        ? YTKACEInstallClassHook(className, selectorName,
+                                 replacement, &original)
+        : YTKACEInstallInstanceHook(className, selectorName,
+                                    replacement, &original);
+    if (installed && original != NULL) {
+        NSString *key = YTKACEDoubleTapKey(cls, classMethod, selector);
+        if (YTKACEDoubleTapOriginals[key] == nil) {
+            YTKACEDoubleTapOriginals[key] =
+                YTKACEDoubleTapValueForIMP(original);
+        }
+    }
+    return installed;
+}
+
 static void YTKACEInstallDoubleTapHook(NSString *className,
                                       NSString *selectorName,
                                       BOOL classMethod) {
@@ -185,5 +385,21 @@ void YTKACEInstallDoubleTapHooks(void) {
             selector,
             YES
         );
+    }
+    for (NSString *className in @[
+        @"YTHotConfig",
+        @"YTColdConfig",
+        @"YTGlobalConfig",
+        @"YTSettings"
+    ]) {
+        for (NSNumber *classMethodValue in @[@NO, @YES]) {
+            BOOL classMethod = classMethodValue.boolValue;
+            YTKACEInstallTapToSeekHook(
+                className, @"androidDisableTimeBarTapToSeek",
+                (IMP)YTKACETapToSeekDisabled, classMethod);
+            YTKACEInstallTapToSeekHook(
+                className, @"iosEnableVideoPlayerScrubber",
+                (IMP)YTKACETapToSeekEnabled, classMethod);
+        }
     }
 }

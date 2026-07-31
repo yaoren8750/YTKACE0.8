@@ -1,7 +1,6 @@
 #import "../../YTKACE.h"
 #import "../../Runtime/Hooking.h"
 #import "../../Runtime/Preferences.h"
-#import "../Downloads/DownloadLog.h"
 
 #import <UIKit/UIKit.h>
 #import <objc/message.h>
@@ -19,6 +18,20 @@ static IMP OriginalChipCloudLayout;
 static IMP OriginalFeedHeaderScrollMode;
 static IMP OriginalSubsSetChipFilterView;
 static IMP OriginalMaximumSubheaderHeight;
+static IMP OriginalMaximumSubheaderHeightGetter;
+static IMP OriginalSubheaderDefaultHeight;
+static IMP OriginalSetHeaderHeights;
+static IMP OriginalShouldHideSubheader;
+static IMP OriginalPaidContentLayout;
+static IMP OriginalPaidContentDidAppear;
+static IMP OriginalPaidContentPlaybackStarted;
+static IMP OriginalSetPaidContentPlayerData;
+static IMP OriginalSetPaidContentRenderer;
+static IMP OriginalHasPaidContentOverlay;
+static IMP OriginalPaidContentOverlay;
+static IMP OriginalOverlayPaidContentPlayerData;
+static IMP OriginalInlinePaidContentPlayerData;
+static IMP OriginalDidInsertPlayerOverlay;
 static const void *YTKACEContentHiddenAssociation = &YTKACEContentHiddenAssociation;
 static BOOL YTKACEContentContains(NSString *token,
                                   NSArray<NSString *> *needles);
@@ -98,45 +111,14 @@ static BOOL YTKACESectionIsShortsShelf(id section) {
     return NO;
 }
 
-static BOOL YTKACEEntryIsChipBar(id entry) {
-    NSString *description = [[entry description] lowercaseString];
-    return [description containsString:@"chipcloudrenderer"] ||
-           [description containsString:@"feedfilterchipbarrenderer"] ||
-           [description containsString:@"filterchipbarelementrenderer"];
-}
-
-static BOOL YTKACESectionIsTopicChipBar(id section) {
-    if (section == nil) {
-        return NO;
-    }
-    NSString *className = NSStringFromClass([section class]).lowercaseString;
-    if ([className containsString:@"chipcloudrenderer"] ||
-        [className containsString:@"feedfilterchipbarrenderer"] ||
-        [className containsString:@"filterchipbarelementrenderer"]) {
-        return YES;
-    }
-    NSArray *entries = YTKACEContentValue(section, @"contentsArray");
-    if (![entries isKindOfClass:NSArray.class] || entries.count == 0) {
-        return NO;
-    }
-    for (id entry in entries) {
-        if (!YTKACEEntryIsChipBar(entry)) {
-            return NO;
-        }
-    }
-    return YES;
-}
-
 static NSArray *YTKACEFilteredFeedSections(NSArray *sections) {
     BOOL hideShorts = YTKACEFeatureEnabled(@"kEnableHideYTShorts");
-    BOOL hideTopics = YTKACEHideTopics();
-    if ((!hideShorts && !hideTopics) || ![sections isKindOfClass:NSArray.class]) {
+    if (!hideShorts || ![sections isKindOfClass:NSArray.class]) {
         return sections;
     }
     NSMutableArray *filtered = [NSMutableArray arrayWithCapacity:sections.count];
     for (id section in sections) {
         if (hideShorts && YTKACESectionIsShortsShelf(section)) continue;
-        if (hideTopics && YTKACESectionIsTopicChipBar(section)) continue;
         [filtered addObject:section];
     }
     return filtered;
@@ -145,8 +127,9 @@ static NSArray *YTKACEFilteredFeedSections(NSArray *sections) {
 static id YTKACESectionControllers(id receiver, SEL selector,
                                    NSArray *sections, id reloadMap) {
     if (OriginalSectionControllers == NULL) return nil;
+    NSArray *filtered = YTKACEFilteredFeedSections(sections);
     return ((id (*)(id, SEL, id, id))OriginalSectionControllers)(
-        receiver, selector, YTKACEFilteredFeedSections(sections), reloadMap);
+        receiver, selector, filtered, reloadMap);
 }
 
 static BOOL YTKACEContentContains(NSString *token,
@@ -333,6 +316,7 @@ static void YTKACECollapseSubheader(id receiver) {
         ((void (*)(id, SEL, double))objc_msgSend)(receiver, height, 0.0);
     }
     for (NSString *name in @[@"hideSubheaderBar", @"disableSubheaderBar",
+                             @"setSubheaderHeightToZero",
                              @"resetScrollViewInsetOffset"]) {
         SEL selector = NSSelectorFromString(name);
         if ([receiver respondsToSelector:selector]) {
@@ -342,6 +326,131 @@ static void YTKACECollapseSubheader(id receiver) {
     SEL enabled = NSSelectorFromString(@"setSubheaderBarEnabled:");
     if ([receiver respondsToSelector:enabled]) {
         ((void (*)(id, SEL, BOOL))objc_msgSend)(receiver, enabled, NO);
+    }
+}
+
+static double YTKACEMaximumSubheaderHeightGetter(id receiver, SEL selector) {
+    if (YTKACEHideTopics()) return 0.0;
+    return OriginalMaximumSubheaderHeightGetter == NULL
+        ? 0.0
+        : ((double (*)(id, SEL))OriginalMaximumSubheaderHeightGetter)(
+            receiver, selector);
+}
+
+static double YTKACESubheaderDefaultHeight(id receiver, SEL selector) {
+    if (YTKACEHideTopics()) return 0.0;
+    return OriginalSubheaderDefaultHeight == NULL
+        ? 0.0
+        : ((double (*)(id, SEL))OriginalSubheaderDefaultHeight)(
+            receiver, selector);
+}
+
+static void YTKACEPaidContentLayout(UIView *receiver, SEL selector) {
+    if (OriginalPaidContentLayout != NULL) {
+        ((void (*)(id, SEL))OriginalPaidContentLayout)(receiver, selector);
+    }
+    BOOL hide = YTKACEFeatureEnabled(@"kEnableNoPaidPromotion");
+    NSNumber *baseline = objc_getAssociatedObject(
+        receiver, YTKACEContentHiddenAssociation);
+    if (hide) {
+        if (baseline == nil) {
+            objc_setAssociatedObject(receiver,
+                                     YTKACEContentHiddenAssociation,
+                                     @(receiver.hidden),
+                                     OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        receiver.hidden = YES;
+        receiver.userInteractionEnabled = NO;
+    } else if (baseline != nil) {
+        receiver.hidden = baseline.boolValue;
+        receiver.userInteractionEnabled = YES;
+        objc_setAssociatedObject(receiver,
+                                 YTKACEContentHiddenAssociation,
+                                 nil,
+                                 OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+}
+
+static void YTKACEPaidContentDidAppear(UIViewController *receiver,
+                                       SEL selector,
+                                       BOOL animated) {
+    if (OriginalPaidContentDidAppear != NULL) {
+        ((void (*)(id, SEL, BOOL))OriginalPaidContentDidAppear)(
+            receiver, selector, animated);
+    }
+    if (!YTKACEFeatureEnabled(@"kEnableNoPaidPromotion")) return;
+    receiver.view.hidden = YES;
+    receiver.view.userInteractionEnabled = NO;
+    for (NSString *name in @[@"hidePaidContent",
+                             @"removePaidContentViewController"]) {
+        SEL action = NSSelectorFromString(name);
+        if ([receiver respondsToSelector:action]) {
+            ((void (*)(id, SEL))objc_msgSend)(receiver, action);
+        }
+    }
+}
+
+static void YTKACEPaidContentPlaybackStarted(id receiver, SEL selector) {
+    if (!YTKACEFeatureEnabled(@"kEnableNoPaidPromotion") &&
+        OriginalPaidContentPlaybackStarted != NULL) {
+        ((void (*)(id, SEL))OriginalPaidContentPlaybackStarted)(receiver, selector);
+    }
+}
+
+static void YTKACESetPaidContentPlayerData(id receiver, SEL selector, id data) {
+    if (!YTKACEFeatureEnabled(@"kEnableNoPaidPromotion") &&
+        OriginalSetPaidContentPlayerData != NULL) {
+        ((void (*)(id, SEL, id))OriginalSetPaidContentPlayerData)(
+            receiver, selector, data);
+    }
+}
+
+static void YTKACESetPaidContentRenderer(id receiver, SEL selector, id renderer) {
+    if (OriginalSetPaidContentRenderer != NULL) {
+        ((void (*)(id, SEL, id))OriginalSetPaidContentRenderer)(
+            receiver, selector,
+            YTKACEFeatureEnabled(@"kEnableNoPaidPromotion") ? nil : renderer);
+    }
+}
+
+static BOOL YTKACEHasPaidContentOverlay(id receiver, SEL selector) {
+    if (YTKACEFeatureEnabled(@"kEnableNoPaidPromotion")) return NO;
+    return OriginalHasPaidContentOverlay != NULL &&
+        ((BOOL (*)(id, SEL))OriginalHasPaidContentOverlay)(receiver, selector);
+}
+
+static id YTKACEPaidContentOverlay(id receiver, SEL selector) {
+    if (YTKACEFeatureEnabled(@"kEnableNoPaidPromotion")) return nil;
+    return OriginalPaidContentOverlay == NULL ? nil :
+        ((id (*)(id, SEL))OriginalPaidContentOverlay)(receiver, selector);
+}
+
+static void YTKACEOverlayPaidContentPlayerData(id receiver, SEL selector, id data) {
+    if (!YTKACEFeatureEnabled(@"kEnableNoPaidPromotion") &&
+        OriginalOverlayPaidContentPlayerData != NULL) {
+        ((void (*)(id, SEL, id))OriginalOverlayPaidContentPlayerData)(
+            receiver, selector, data);
+    }
+}
+
+static void YTKACEInlinePaidContentPlayerData(id receiver, SEL selector, id data) {
+    if (!YTKACEFeatureEnabled(@"kEnableNoPaidPromotion") &&
+        OriginalInlinePaidContentPlayerData != NULL) {
+        ((void (*)(id, SEL, id))OriginalInlinePaidContentPlayerData)(
+            receiver, selector, data);
+    }
+}
+
+static void YTKACEDidInsertPlayerOverlay(id receiver, SEL selector,
+                                         id provider, id overlay) {
+    NSString *identifier = YTKACEContentValue(overlay, @"overlayIdentifier");
+    if (YTKACEFeatureEnabled(@"kEnableNoPaidPromotion") &&
+        [identifier isEqualToString:@"player_overlay_paid_content"]) {
+        return;
+    }
+    if (OriginalDidInsertPlayerOverlay != NULL) {
+        ((void (*)(id, SEL, id, id))OriginalDidInsertPlayerOverlay)(
+            receiver, selector, provider, overlay);
     }
 }
 
@@ -442,10 +551,31 @@ static void YTKACEMaximumSubheaderHeight(__unsafe_unretained id receiver,
     }
 }
 
+static void YTKACESetHeaderHeights(id receiver, SEL selector,
+                                    double headerHeight,
+                                    double subheaderHeight,
+                                    double topOffset,
+                                    BOOL animated) {
+    if (YTKACEHideTopics()) {
+        subheaderHeight = 0.0;
+    }
+    if (OriginalSetHeaderHeights != NULL) {
+        ((void (*)(id, SEL, double, double, double, BOOL))OriginalSetHeaderHeights)(
+            receiver, selector, headerHeight, subheaderHeight, topOffset, animated);
+    }
+}
+
+static BOOL YTKACEShouldHideSubheader(id receiver, SEL selector) {
+    if (YTKACEHideTopics()) return YES;
+    return OriginalShouldHideSubheader != NULL &&
+        ((BOOL (*)(id, SEL))OriginalShouldHideSubheader)(receiver, selector);
+}
+
 static void YTKACEAddSections(id receiver, SEL selector, NSArray *sections) {
     if (OriginalAddSections != NULL) {
+        NSArray *filtered = YTKACEFilteredFeedSections(sections);
         ((void (*)(id, SEL, id))OriginalAddSections)(
-            receiver, selector, YTKACEFilteredFeedSections(sections));
+            receiver, selector, filtered);
     }
 }
 
@@ -494,8 +624,64 @@ void YTKACEInstallContentVisibilityHooks(void) {
                               @"setMaximumSubheaderHeight:",
                               (IMP)YTKACEMaximumSubheaderHeight,
                               &OriginalMaximumSubheaderHeight);
+    YTKACEInstallInstanceHook(@"YTHeaderContentComboView",
+                              @"maximumSubheaderHeight",
+                              (IMP)YTKACEMaximumSubheaderHeightGetter,
+                              &OriginalMaximumSubheaderHeightGetter);
+    YTKACEInstallInstanceHook(@"YTHeaderContentComboView",
+                              @"subheaderDefaultHeight",
+                              (IMP)YTKACESubheaderDefaultHeight,
+                              &OriginalSubheaderDefaultHeight);
+    YTKACEInstallInstanceHook(@"YTHeaderContentComboView",
+                              @"setHeaderHeight:subheaderHeight:topOffset:animated:",
+                              (IMP)YTKACESetHeaderHeights,
+                              &OriginalSetHeaderHeights);
+    YTKACEInstallInstanceHook(@"YTHeaderContentComboView",
+                              @"shouldHideSubHeader",
+                              (IMP)YTKACEShouldHideSubheader,
+                              &OriginalShouldHideSubheader);
     YTKACEInstallInstanceHook(@"YTMySubsFilterHeaderView",
                               @"setChipFilterView:",
                               (IMP)YTKACESubsSetChipFilterView,
                               &OriginalSubsSetChipFilterView);
+    YTKACEInstallInstanceHook(@"YTPaidContentOverlayView",
+                              @"layoutSubviews",
+                              (IMP)YTKACEPaidContentLayout,
+                              &OriginalPaidContentLayout);
+    YTKACEInstallInstanceHook(@"YTPaidContentViewController",
+                              @"viewDidAppear:",
+                              (IMP)YTKACEPaidContentDidAppear,
+                              &OriginalPaidContentDidAppear);
+    YTKACEInstallInstanceHook(@"YTPaidContentController",
+                              @"playbackDidStart",
+                              (IMP)YTKACEPaidContentPlaybackStarted,
+                              &OriginalPaidContentPlaybackStarted);
+    YTKACEInstallInstanceHook(@"YTPaidContentController",
+                              @"setPaidContentWithPlayerData:",
+                              (IMP)YTKACESetPaidContentPlayerData,
+                              &OriginalSetPaidContentPlayerData);
+    YTKACEInstallInstanceHook(@"YTPaidContentViewController",
+                              @"setPaidContentRenderer:",
+                              (IMP)YTKACESetPaidContentRenderer,
+                              &OriginalSetPaidContentRenderer);
+    YTKACEInstallInstanceHook(@"YTIPlayerResponse",
+                              @"hasPaidContentOverlay",
+                              (IMP)YTKACEHasPaidContentOverlay,
+                              &OriginalHasPaidContentOverlay);
+    YTKACEInstallInstanceHook(@"YTIPlayerResponse",
+                              @"paidContentOverlay",
+                              (IMP)YTKACEPaidContentOverlay,
+                              &OriginalPaidContentOverlay);
+    YTKACEInstallInstanceHook(@"YTMainAppVideoPlayerOverlayViewController",
+                              @"setPaidContentWithPlayerData:",
+                              (IMP)YTKACEOverlayPaidContentPlayerData,
+                              &OriginalOverlayPaidContentPlayerData);
+    YTKACEInstallInstanceHook(@"YTInlineMutedPlaybackPlayerOverlayViewController",
+                              @"setPaidContentWithPlayerData:",
+                              (IMP)YTKACEInlinePaidContentPlayerData,
+                              &OriginalInlinePaidContentPlayerData);
+    YTKACEInstallInstanceHook(@"YTMainAppVideoPlayerOverlayViewController",
+                              @"playerOverlayProvider:didInsertPlayerOverlay:",
+                              (IMP)YTKACEDidInsertPlayerOverlay,
+                              &OriginalDidInsertPlayerOverlay);
 }

@@ -1,8 +1,8 @@
 #import "../../YTKACE.h"
 #import "../../Runtime/Hooking.h"
 #import "../../Runtime/Preferences.h"
-#import "../Downloads/DownloadLog.h"
 #import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
 #import <objc/message.h>
 #import <objc/runtime.h>
 
@@ -36,6 +36,7 @@ static IMP OriginalCompanionAd;
 static IMP OriginalHasCompanionAdRenderer;
 static IMP OriginalHasAppPromoCompanionAdRenderer;
 static IMP OriginalHasShoppingCompanionAdRenderer;
+static IMP OriginalElementContentsArray;
 
 static id YTKACECallObjectGetter(IMP implementation, id receiver, SEL selector) {
     return implementation == NULL
@@ -310,8 +311,12 @@ static BOOL YTKACEReelShouldDisplay(id receiver, SEL selector) {
 
 static BOOL YTKACEIsAdLayoutIdentifier(NSString *identifier) {
     if (identifier.length == 0) return NO;
-    return [identifier isEqualToString:@"eml_expandable_metadata_vpp"] ||
-        [identifier hasPrefix:@"eml_ad"];
+    NSString *normalized = [[identifier lowercaseString]
+        stringByReplacingOccurrencesOfString:@"." withString:@"_"];
+    normalized = [normalized stringByReplacingOccurrencesOfString:@"-"
+                                                        withString:@"_"];
+    return [normalized isEqualToString:@"eml_expandable_metadata_vpp"] ||
+        [normalized hasPrefix:@"eml_ad_"];
 }
 
 static void YTKACEASDisplayDidMoveToWindow(id receiver, SEL selector) {
@@ -343,6 +348,31 @@ static BOOL YTKACEObjectLooksLikeAd(id object) {
         [className containsString:@"displayad"]) {
         return YES;
     }
+    for (NSString *selectorName in @[
+        @"isAdRenderer", @"isAd", @"hasAdLoggingData"
+    ]) {
+        SEL selector = NSSelectorFromString(selectorName);
+        if ([object respondsToSelector:selector] &&
+            ((BOOL (*)(id, SEL))objc_msgSend)(object, selector)) {
+            return YES;
+        }
+    }
+    if (YTKACEObjectValue(object, @"adLoggingData") != nil) return YES;
+    for (NSString *selectorName in @[
+        @"identifier", @"layoutIdentifier", @"elementIdentifier",
+        @"accessibilityIdentifier", @"templateIdentifier"
+    ]) {
+        id value = YTKACEObjectValue(object, selectorName);
+        if ([value isKindOfClass:NSString.class] &&
+            YTKACEIsAdLayoutIdentifier(value)) {
+            return YES;
+        }
+    }
+    NSString *description = [object description].lowercaseString ?: @"";
+    if ([description containsString:@"eml.ad_"] ||
+        [description containsString:@"eml_ad_"]) {
+        return YES;
+    }
     SEL compatibilitySelector = NSSelectorFromString(@"compatibilityOptions");
     if (![object respondsToSelector:compatibilitySelector]) {
         return NO;
@@ -358,6 +388,24 @@ static id YTKACEElementRenderer(id object) {
     return [object respondsToSelector:selector]
         ? ((id (*)(id, SEL))objc_msgSend)(object, selector)
         : nil;
+}
+
+static NSArray *YTKACEElementContentsArray(id receiver, SEL selector) {
+    NSArray *contents = OriginalElementContentsArray == NULL ? nil :
+        ((id (*)(id, SEL))OriginalElementContentsArray)(receiver, selector);
+    if (!YTKACEFeatureEnabled(YTKACENoAdsKey) ||
+        ![contents isKindOfClass:NSArray.class] || contents.count == 0) {
+        return contents;
+    }
+    NSMutableArray *filtered = [NSMutableArray arrayWithCapacity:contents.count];
+    for (id content in contents) {
+        id renderer = YTKACEElementRenderer(content);
+        if (!YTKACEObjectLooksLikeAd(content) &&
+            !YTKACEObjectLooksLikeAd(renderer)) {
+            [filtered addObject:content];
+        }
+    }
+    return filtered.count == contents.count ? contents : filtered;
 }
 
 static NSArray *YTKACEFilteredSections(NSArray *sections) {
@@ -610,4 +658,8 @@ void YTKACEInstallAdsHooks(void) {
                               @"hasShoppingCompanionAdRenderer",
                               (IMP)YTKACEHasShoppingCompanionAdRenderer,
                               &OriginalHasShoppingCompanionAdRenderer);
+    YTKACEInstallInstanceHook(@"YTIElementRenderer",
+                              @"contentsArray",
+                              (IMP)YTKACEElementContentsArray,
+                              &OriginalElementContentsArray);
 }

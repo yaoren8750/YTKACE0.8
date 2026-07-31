@@ -50,6 +50,10 @@ static NSMutableDictionary<NSString *, NSArray *> *YTKACEPlayerRequests;
 static NSMutableDictionary<NSString *, id> *YTKACEPlaybackRequests;
 static NSInteger YTKACEPlayerHookAttempts;
 static NSString *YTKACELastCapturedVideoID;
+
+NSString *YTKACELastVideoID(void) {
+    return [YTKACELastCapturedVideoID copy];
+}
 static NSString *YTKACERequestVideoID(id request);
 static id YTKACECopyObject(id object);
 

@@ -1,7 +1,6 @@
 #import "../../YTKACE.h"
 #import "../../Runtime/Hooking.h"
 #import "../../Runtime/Preferences.h"
-#import "../Downloads/DownloadLog.h"
 #import "../Downloads/DownloadCoordinator.h"
 
 #import <QuartzCore/QuartzCore.h>
@@ -17,21 +16,21 @@ static const void *YTKACEShortsFillAssociation = &YTKACEShortsFillAssociation;
 static const void *YTKACEShortsSkipAssociation = &YTKACEShortsSkipAssociation;
 static const void *YTKACEShortsDownloadAssociation = &YTKACEShortsDownloadAssociation;
 static const void *YTKACEShortsHiddenAssociation = &YTKACEShortsHiddenAssociation;
+static const void *YTKACEShortsDownloadConstraintsAssociation =
+    &YTKACEShortsDownloadConstraintsAssociation;
+static const void *YTKACEShortsDownloadAnchoredAssociation =
+    &YTKACEShortsDownloadAnchoredAssociation;
+static const void *YTKACEShortsRailTransformAssociation =
+    &YTKACEShortsRailTransformAssociation;
+static const void *YTKACEShortsInitialRefreshAssociation =
+    &YTKACEShortsInitialRefreshAssociation;
 static NSInteger const YTKACEShortsDownloadTag = 0x59544B44;
-static __weak UIButton *YTKACEActiveShortsDownloadButton;
-static BOOL YTKACEViewContains(UIView *ancestor, UIView *view) {
-    if (ancestor == nil || view == nil) return NO;
-    for (UIView *node = view; node != nil; node = node.superview) {
-        if (node == ancestor) return YES;
-    }
-    return NO;
-}
-
 static double YTKACELastShortsTime;
 static double YTKACELastShortsDuration;
 static id YTKACELatestShortsPlayerResponse;
 
 static void YTKACEReelLayout(UIView *receiver, SEL selector);
+static void YTKACEReelOverlayLayout(UIView *receiver, SEL selector);
 static void YTKACEShortsControllerLayout(UIViewController *receiver,
                                          SEL selector);
 static void YTKACEPausedLayout(UIView *receiver, SEL selector);
@@ -56,6 +55,229 @@ static void YTKACESetShortsHidden(UIView *view, BOOL hidden) {
     }
 }
 
+static BOOL YTKACEShortsActionHidden(UIView *view) {
+    if (view.tag == YTKACEShortsDownloadTag ||
+        [view.accessibilityIdentifier hasPrefix:@"YTKACE"]) {
+        return NO;
+    }
+    NSString *identifier = view.accessibilityIdentifier.lowercaseString ?: @"";
+    BOOL actionable = [view isKindOfClass:UIControl.class] ||
+        view.accessibilityIdentifier.length != 0 ||
+        view.accessibilityLabel.length != 0;
+    if (!actionable) return NO;
+    if (YTKACEFeatureEnabled(@"kEnableHideShortsRemix") &&
+        [identifier isEqualToString:@"id.reel_remix_button"]) {
+        return YES;
+    }
+    if (YTKACEFeatureEnabled(@"kEnableHideShortsAudioTrack") &&
+        [identifier isEqualToString:@"id.reel_pivot_button"]) {
+        return YES;
+    }
+    if (YTKACEFeatureEnabled(@"kEnableHideShortsShare") &&
+        [identifier isEqualToString:@"id.reel_share_button"]) {
+        return YES;
+    }
+    if (YTKACEFeatureEnabled(@"kEnableHideShortsComments") &&
+        [identifier isEqualToString:@"id.reel_comment_button"]) {
+        return YES;
+    }
+    if (YTKACEFeatureEnabled(@"kEnableHideShortsLike") &&
+        [identifier isEqualToString:@"id.reel_like_button"]) {
+        return YES;
+    }
+    return NO;
+}
+
+static void YTKACEApplyShortsActionVisibility(UIView *view) {
+    YTKACESetShortsHidden(view, YTKACEShortsActionHidden(view));
+    for (UIView *subview in view.subviews) {
+        YTKACEApplyShortsActionVisibility(subview);
+    }
+}
+
+static BOOL YTKACEIsShortsActionIdentifier(NSString *identifier) {
+    return [identifier isEqualToString:@"id.reel_like_button"] ||
+        [identifier isEqualToString:@"id.reel_comment_button"] ||
+        [identifier isEqualToString:@"id.reel_share_button"] ||
+        [identifier isEqualToString:@"id.reel_remix_button"] ||
+        [identifier isEqualToString:@"id.reel_pivot_button"];
+}
+
+static BOOL YTKACEActionIsFullyVisible(UIView *view, UIView *root) {
+    CGRect frame = [view convertRect:view.bounds toView:root];
+    return CGRectGetWidth(frame) > 20.0 &&
+        CGRectGetHeight(frame) > 20.0 &&
+        CGRectGetMidX(frame) > CGRectGetWidth(root.bounds) * 0.55 &&
+        CGRectGetMinY(frame) >= 0.0 &&
+        CGRectGetMaxY(frame) <= CGRectGetHeight(root.bounds);
+}
+
+static UIView *YTKACEShortsPlaybackOverlay(UIView *view, UIView *root) {
+    for (UIView *candidate = view; candidate != nil;
+         candidate = candidate.superview) {
+        if ([NSStringFromClass(candidate.class)
+                containsString:@"ReelWatchPlaybackOverlayView"]) {
+            return candidate;
+        }
+        if (candidate == root) break;
+    }
+    return nil;
+}
+
+static void YTKACECollectShortsActions(UIView *view,
+                                       UIView *root,
+                                       BOOL includeHidden,
+                                       NSMutableArray<UIView *> *views) {
+    NSString *identifier = view.accessibilityIdentifier.lowercaseString ?: @"";
+    if (view.tag != YTKACEShortsDownloadTag &&
+        (includeHidden || (!view.hidden && view.alpha > 0.05)) &&
+        YTKACEIsShortsActionIdentifier(identifier) &&
+        YTKACEActionIsFullyVisible(view, root)) {
+        [views addObject:view];
+    }
+    for (UIView *subview in view.subviews) {
+        YTKACECollectShortsActions(subview, root, includeHidden, views);
+    }
+}
+
+static UIView *YTKACEVisibleShortsAction(UIView *root) {
+    NSMutableArray<UIView *> *actions = [NSMutableArray array];
+    YTKACECollectShortsActions(root, root, NO, actions);
+    NSString *expected = nil;
+    if (!YTKACEFeatureEnabled(@"kEnableHideShortsLike")) {
+        expected = @"id.reel_like_button";
+    } else if (!YTKACEFeatureEnabled(@"kEnableHideShortsComments")) {
+        expected = @"id.reel_comment_button";
+    } else if (!YTKACEFeatureEnabled(@"kEnableHideShortsShare")) {
+        expected = @"id.reel_share_button";
+    } else if (!YTKACEFeatureEnabled(@"kEnableHideShortsRemix")) {
+        expected = @"id.reel_remix_button";
+    } else if (!YTKACEFeatureEnabled(@"kEnableHideShortsAudioTrack")) {
+        expected = @"id.reel_pivot_button";
+    }
+    if (expected == nil) return nil;
+    for (UIView *action in actions) {
+        if (YTKACEShortsPlaybackOverlay(action, root) == nil) continue;
+        if ([action.accessibilityIdentifier.lowercaseString
+                isEqualToString:expected]) {
+            return action;
+        }
+    }
+    return nil;
+}
+
+static UIView *YTKACEVisibleShortsPlaybackOverlay(UIView *root) {
+    NSString *className = NSStringFromClass(root.class);
+    if ([className containsString:@"ReelWatchPlaybackOverlayView"] &&
+        root.window != nil && !root.hidden && root.alpha > 0.05 &&
+        CGRectGetWidth(root.bounds) > 200.0 &&
+        CGRectGetHeight(root.bounds) > 300.0) {
+        return root;
+    }
+    for (UIView *subview in root.subviews) {
+        UIView *overlay = YTKACEVisibleShortsPlaybackOverlay(subview);
+        if (overlay != nil) return overlay;
+    }
+    return nil;
+}
+
+static UIView *YTKACECurrentShortsPlaybackOverlay(UIView *root) {
+    UIView *visibleOverlay = YTKACEVisibleShortsPlaybackOverlay(root);
+    if (visibleOverlay != nil) return visibleOverlay;
+    NSMutableArray<UIView *> *actions = [NSMutableArray array];
+    YTKACECollectShortsActions(root, root, YES, actions);
+    for (UIView *action in actions) {
+        UIView *overlay = YTKACEShortsPlaybackOverlay(action, root);
+        if (overlay != nil) return overlay;
+    }
+    return nil;
+}
+
+static void YTKACECompactShortsRail(UIView *root) {
+    NSMutableArray<UIView *> *actions = [NSMutableArray array];
+    YTKACECollectShortsActions(root, root, YES, actions);
+    for (UIView *action in actions) {
+        NSValue *baselineValue = objc_getAssociatedObject(
+            action, YTKACEShortsRailTransformAssociation);
+        if (baselineValue == nil) {
+            baselineValue = [NSValue valueWithCGAffineTransform:action.transform];
+            objc_setAssociatedObject(action,
+                YTKACEShortsRailTransformAssociation, baselineValue,
+                OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        action.transform = baselineValue.CGAffineTransformValue;
+    }
+    for (UIView *action in actions) {
+        NSValue *baselineValue = objc_getAssociatedObject(
+            action, YTKACEShortsRailTransformAssociation);
+        CGFloat offset = 0.0;
+        if (!action.hidden) {
+            CGFloat actionY = CGRectGetMinY(
+                [action convertRect:action.bounds toView:root]);
+            for (UIView *candidate in actions) {
+                if (!candidate.hidden) continue;
+                CGFloat hiddenY = CGRectGetMinY(
+                    [candidate convertRect:candidate.bounds toView:root]);
+                if (hiddenY > actionY) {
+                    offset += 64.0;
+                }
+            }
+        }
+        action.transform = CGAffineTransformTranslate(
+            baselineValue.CGAffineTransformValue, 0.0, offset);
+    }
+}
+
+static void YTKACEPositionShortsDownload(UIView *host,
+                                         UIView *action,
+                                         UIButton *download) {
+    NSArray<NSLayoutConstraint *> *constraints = objc_getAssociatedObject(
+        download, YTKACEShortsDownloadConstraintsAssociation);
+    NSInteger position = [NSUserDefaults.standardUserDefaults
+        integerForKey:@"kShortsDownloadButtonPosition"];
+    if (position == 0) {
+        if (download.translatesAutoresizingMaskIntoConstraints) {
+            download.translatesAutoresizingMaskIntoConstraints = NO;
+        }
+        if (constraints == nil) {
+            constraints = @[
+                [download.widthAnchor constraintEqualToConstant:40.0],
+                [download.heightAnchor constraintEqualToConstant:40.0],
+                [download.trailingAnchor constraintEqualToAnchor:
+                    host.safeAreaLayoutGuide.trailingAnchor constant:-12.0],
+                [download.topAnchor constraintEqualToAnchor:
+                    host.safeAreaLayoutGuide.topAnchor constant:65.0]
+            ];
+            objc_setAssociatedObject(download,
+                YTKACEShortsDownloadConstraintsAssociation,
+                constraints, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        [NSLayoutConstraint activateConstraints:constraints];
+        [host layoutIfNeeded];
+        return;
+    }
+
+    if (constraints.count != 0) {
+        [NSLayoutConstraint deactivateConstraints:constraints];
+    }
+    download.translatesAutoresizingMaskIntoConstraints = YES;
+    CGFloat centerX = CGRectGetWidth(host.bounds) - 32.0;
+    CGFloat top = host.safeAreaInsets.top + 65.0;
+    if (action == nil && !CGRectIsEmpty(download.frame) &&
+        CGRectGetWidth(download.frame) >= 39.0) {
+        return;
+    }
+    if (action != nil) {
+        CGRect frame = [action convertRect:action.bounds toView:host];
+        centerX = CGRectGetMidX(frame);
+        top = CGRectGetMinY(frame) - 52.0;
+    }
+    top = MAX(host.safeAreaInsets.top + 52.0, top);
+    download.frame = CGRectMake(round(centerX - 20.0), round(top), 40.0, 40.0);
+    download.autoresizingMask =
+        UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleTopMargin;
+}
+
 static NSString *YTKACEShortsHookKey(Class cls, SEL selector) {
     return [NSString stringWithFormat:@"%@|%@", NSStringFromClass(cls),
                                       NSStringFromSelector(selector)];
@@ -70,6 +292,7 @@ static IMP YTKACEShortsOriginal(id receiver, SEL selector,
             YTKACEShortsHookKey(cls, selector)] pointerValue];
         if (original != NULL &&
             original != (IMP)YTKACEReelLayout &&
+            original != (IMP)YTKACEReelOverlayLayout &&
             original != (IMP)YTKACEShortsControllerLayout &&
             original != (IMP)YTKACEPausedLayout &&
             original != (IMP)YTKACEInteractiveStickerLayout) {
@@ -119,6 +342,7 @@ static Method YTKACEShortsDirectMethod(Class cls, SEL selector) {
 
 static BOOL YTKACEShortsIsReplacement(IMP implementation) {
     return implementation == (IMP)YTKACEReelLayout ||
+        implementation == (IMP)YTKACEReelOverlayLayout ||
         implementation == (IMP)YTKACEShortsControllerLayout ||
         implementation == (IMP)YTKACEPausedLayout ||
         implementation == (IMP)YTKACEInteractiveStickerLayout;
@@ -303,23 +527,23 @@ static void YTKACEConfigureReelView(UIView *receiver, BOOL showDownload) {
         objc_setAssociatedObject(receiver, YTKACEShortsFillAssociation,
                                  fill, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
-    UIButton *download =
-        objc_getAssociatedObject(receiver, YTKACEShortsDownloadAssociation);
-    if (showDownload && download == nil) {
-        UIButton *active = YTKACEActiveShortsDownloadButton;
-        UIView *activeHost = active.superview;
-        if (active != nil && activeHost != nil && activeHost != receiver) {
-            if (YTKACEViewContains(receiver, activeHost)) {
-                YTKACEUpdateShortsProgress();
-                return;
-            }
-            if (YTKACEViewContains(activeHost, receiver)) {
-                [active removeFromSuperview];
-                objc_setAssociatedObject(activeHost,
-                                         YTKACEShortsDownloadAssociation, nil,
-                                         OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-            }
-        }
+    if (showDownload) {
+        YTKACEApplyShortsActionVisibility(receiver);
+        YTKACECompactShortsRail(receiver);
+    }
+    BOOL visibleHost = receiver.window != nil && !receiver.hidden &&
+        receiver.alpha > 0.05 && CGRectGetWidth(receiver.bounds) > 200.0 &&
+        CGRectGetHeight(receiver.bounds) > 300.0;
+    UIView *action = showDownload && visibleHost
+        ? YTKACEVisibleShortsAction(receiver)
+        : nil;
+    UIView *downloadHost = action == nil
+        ? YTKACECurrentShortsPlaybackOverlay(receiver)
+        : YTKACEShortsPlaybackOverlay(action, receiver);
+    UIButton *download = objc_getAssociatedObject(
+        downloadHost, YTKACEShortsDownloadAssociation);
+    if (showDownload && visibleHost && downloadHost != nil &&
+        download == nil) {
         download = [UIButton buttonWithType:UIButtonTypeSystem];
         download.tag = YTKACEShortsDownloadTag;
         download.accessibilityIdentifier = @"YTKACE Shorts Download";
@@ -335,22 +559,41 @@ static void YTKACEConfigureReelView(UIView *receiver, BOOL showDownload) {
         [download addTarget:YTKACEShortsDownloadTarget.sharedTarget
                      action:@selector(downloadTapped:)
            forControlEvents:UIControlEventTouchUpInside];
-        [receiver addSubview:download];
-        [NSLayoutConstraint activateConstraints:@[
-            [download.widthAnchor constraintEqualToConstant:40.0],
-            [download.heightAnchor constraintEqualToConstant:40.0],
-            [download.trailingAnchor constraintEqualToAnchor:
-                receiver.safeAreaLayoutGuide.trailingAnchor constant:-12.0],
-            [download.topAnchor constraintEqualToAnchor:
-                receiver.safeAreaLayoutGuide.topAnchor constant:65.0]
-        ]];
-        objc_setAssociatedObject(receiver, YTKACEShortsDownloadAssociation,
+        [downloadHost addSubview:download];
+        objc_setAssociatedObject(downloadHost, YTKACEShortsDownloadAssociation,
             download, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        YTKACEActiveShortsDownloadButton = download;
     }
-    if (download != nil) {
-        download.hidden = !YTKACEFeatureEnabled(YTKACEDownloadKey);
-        [receiver bringSubviewToFront:download];
+    if (download != nil && download.superview == downloadHost) {
+        if (action != nil) {
+            objc_setAssociatedObject(download,
+                YTKACEShortsDownloadAnchoredAssociation, @YES,
+                OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        BOOL railMode = [NSUserDefaults.standardUserDefaults
+            integerForKey:@"kShortsDownloadButtonPosition"] != 0;
+        BOOL anchored = [objc_getAssociatedObject(download,
+            YTKACEShortsDownloadAnchoredAssociation) boolValue];
+        download.hidden = !YTKACEFeatureEnabled(YTKACEDownloadKey) ||
+            (railMode && !anchored);
+        YTKACEPositionShortsDownload(downloadHost, action, download);
+        [downloadHost bringSubviewToFront:download];
+        NSMutableArray<UIView *> *stack =
+            [NSMutableArray arrayWithObject:downloadHost];
+        NSUInteger duplicates = 0;
+        while (stack.count != 0) {
+            UIView *candidate = stack.lastObject;
+            [stack removeLastObject];
+            for (UIView *subview in candidate.subviews) {
+                if (subview.tag == YTKACEShortsDownloadTag &&
+                    subview != download) {
+                    duplicates++;
+                    [subview removeFromSuperview];
+                } else {
+                    [stack addObject:subview];
+                }
+            }
+        }
+        (void)duplicates;
     }
     static NSTimeInterval lastResolve = 0.0;
     NSTimeInterval now = NSDate.date.timeIntervalSince1970;
@@ -369,10 +612,32 @@ static void YTKACEReelLayout(UIView *receiver, SEL selector) {
     YTKACEConfigureReelView(receiver, NO);
 }
 
+static void YTKACEReelOverlayLayout(UIView *receiver, SEL selector) {
+    YTKACEInvokeShortsOriginal(receiver, selector);
+    YTKACEConfigureReelView(receiver, YES);
+}
+
 static void YTKACEShortsControllerLayout(UIViewController *receiver,
                                          SEL selector) {
     YTKACEInvokeShortsOriginal(receiver, selector);
     YTKACEConfigureReelView(receiver.view, YES);
+    if (![objc_getAssociatedObject(receiver,
+            YTKACEShortsInitialRefreshAssociation) boolValue]) {
+        objc_setAssociatedObject(receiver,
+            YTKACEShortsInitialRefreshAssociation, @YES,
+            OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        __weak UIViewController *weakReceiver = receiver;
+        for (NSNumber *delay in @[@0.08, @0.30]) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                (int64_t)(delay.doubleValue * NSEC_PER_SEC)),
+                dispatch_get_main_queue(), ^{
+                    UIViewController *controller = weakReceiver;
+                    if (controller.view.window != nil) {
+                        YTKACEConfigureReelView(controller.view, YES);
+                    }
+                });
+        }
+    }
 }
 
 static void YTKACEPausedLayout(UIView *receiver, SEL selector) {
@@ -503,6 +768,8 @@ void YTKACEInstallShortsHooks(void) {
     ]) {
         YTKACEInstallShortsLayout(className, (IMP)YTKACEReelLayout);
     }
+    YTKACEInstallShortsLayout(@"YTReelWatchPlaybackOverlayView",
+                              (IMP)YTKACEReelOverlayLayout);
     for (NSString *className in @[
         @"YTAppReelWatchRootViewController",
         @"YTReelWatchRootViewController",

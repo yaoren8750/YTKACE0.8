@@ -37,6 +37,42 @@
 @end
 
 static const void *YTKACEShortsFullscreenKey = &YTKACEShortsFullscreenKey;
+static const void *YTKACEShortsFullscreenAlphaKey =
+    &YTKACEShortsFullscreenAlphaKey;
+static NSInteger const YTKACEShortsDownloadButtonTag = 0x59544B44;
+
+static BOOL YTKACEContainsShortsDownloadButton(UIView *view) {
+    if (view.tag == YTKACEShortsDownloadButtonTag) return YES;
+    for (UIView *subview in view.subviews) {
+        if (YTKACEContainsShortsDownloadButton(subview)) return YES;
+    }
+    return NO;
+}
+
+static void YTKACESetShortsOverlayFullscreen(UIView *overlay,
+                                              BOOL fullscreen) {
+    for (UIView *subview in overlay.subviews) {
+        if (YTKACEContainsShortsDownloadButton(subview)) continue;
+        if (fullscreen) {
+            if (objc_getAssociatedObject(
+                    subview, YTKACEShortsFullscreenAlphaKey) == nil) {
+                objc_setAssociatedObject(subview,
+                    YTKACEShortsFullscreenAlphaKey, @(subview.alpha),
+                    OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
+            subview.alpha = 0.0;
+        } else {
+            NSNumber *alpha = objc_getAssociatedObject(
+                subview, YTKACEShortsFullscreenAlphaKey);
+            if (alpha != nil) {
+                subview.alpha = alpha.doubleValue;
+                objc_setAssociatedObject(subview,
+                    YTKACEShortsFullscreenAlphaKey, nil,
+                    OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
+        }
+    }
+}
 
 @implementation YTKACEDownloadJob
 @end
@@ -641,13 +677,21 @@ static const void *YTKACEShortsFullscreenKey = &YTKACEShortsFullscreenKey;
             id overlay = [shortsView respondsToSelector:overlaySelector]
                 ? ((id (*)(id, SEL))objc_msgSend)(shortsView, overlaySelector) : nil;
             [UIView animateWithDuration:0.3 animations:^{
-                if ([overlay respondsToSelector:@selector(setAlpha:)]) {
-                    ((void (*)(id, SEL, CGFloat))objc_msgSend)(
-                        overlay, @selector(setAlpha:), fullscreen ? 1.0 : 0.0);
+                if ([overlay isKindOfClass:UIView.class]) {
+                    YTKACESetShortsOverlayFullscreen(
+                        (UIView *)overlay, !fullscreen);
                 }
             }];
             objc_setAssociatedObject(controller, YTKACEShortsFullscreenKey, @(!fullscreen),
                                      OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            for (NSNumber *delay in @[@0.05, @0.20]) {
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                    (int64_t)(delay.doubleValue * NSEC_PER_SEC)),
+                    dispatch_get_main_queue(), ^{
+                        [controller.view setNeedsLayout];
+                        [controller.view layoutIfNeeded];
+                    });
+            }
             return;
     }
 }

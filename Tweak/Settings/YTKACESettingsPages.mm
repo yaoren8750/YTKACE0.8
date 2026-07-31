@@ -1187,7 +1187,8 @@ UIViewController *YTKACEMakeOverlayOptionsController(void) {
             YTKACEToggle(@"Hide Suggested Videos", @"kEnableHideSuggestedVideo", @"", @""),
             YTKACEToggle(@"Hide Comments", @"kEnableHideComments", @"", @""),
             YTKACEToggle(@"Hide Comment Previews", @"kEnableHideCommentReview", @"", @""),
-            YTKACEToggle(@"Hide Comment Guidelines", @"kEnableHideCommentGuidlines", @"", @"")
+            YTKACEToggle(@"Hide Comment Guidelines", @"kEnableHideCommentGuidlines", @"", @""),
+            YTKACEToggle(@"Hide Paid Promotion Notice", @"kEnableNoPaidPromotion", @"", @"")
         ],
         @[
             YTKACEToggle(@"Show Status Bar in Overlay", @"kEnableShowStatusBarInOverlay", @"", @""),
@@ -1247,7 +1248,8 @@ UIViewController *YTKACEMakeNavigationOptionsController(void) {
             YTKACEToggle(@"Hide Notifications", @"kEnableHideNotificationBill", @"", @""),
             YTKACEToggle(@"Hide Account", @"kEnableHideAccount", @"", @""),
             YTKACEToggle(@"Hide Search", @"kEnableHideSearch", @"", @""),
-            YTKACEToggle(@"Hide Cast Button", @"kEnableHideCastButton", @"", @"")
+            YTKACEToggle(@"Hide Cast Button", @"kEnableHideCastButton", @"", @""),
+            YTKACEToggle(@"Hide Topic Section", @"kEnableNoTopics", @"", @"")
         ]
     ], @[@"STATUS BAR", @"", @"HIDE ITEMS"]);
 }
@@ -1256,13 +1258,21 @@ UIViewController *YTKACEMakeShortsOptionsController(void) {
     return YTKACEPage(YTKACELocalized(@"Shorts"), @[
         @[
             YTKACEToggle(@"Enable Bottom Progress Bar", @"shortsProgress", @"", @""),
-            YTKACEToggle(@"Auto Skip Shorts", @"autoSkipShorts", @"", @"")
+            YTKACEToggle(@"Auto Skip Shorts", @"autoSkipShorts", @"", @""),
+            YTKACEPicker(@"Download Button", @"kShortsDownloadButtonPosition",
+                         @[@"Top-Right Overlay", @"Above Shorts Actions"],
+                         @[@0, @1], 0, @"", @"")
         ],
         @[
             YTKACEToggle(@"Hide Shorts from Feed", @"kEnableHideYTShorts", @"", @""),
             YTKACEToggle(@"Hide Pause Card", @"kEnableBlockShortsOverlays", @"", @""),
             YTKACEToggle(@"Hide Product Recommendations", @"kEnableHideShortsProducts", @"", @""),
-            YTKACEToggle(@"Hide Sticker Ads", @"kEnableHideShortsStickerAds", @"", @"")
+            YTKACEToggle(@"Hide Sticker Ads", @"kEnableHideShortsStickerAds", @"", @""),
+            YTKACEToggle(@"Hide Like Button", @"kEnableHideShortsLike", @"", @""),
+            YTKACEToggle(@"Hide Comments Button", @"kEnableHideShortsComments", @"", @""),
+            YTKACEToggle(@"Hide Share Button", @"kEnableHideShortsShare", @"", @""),
+            YTKACEToggle(@"Hide Remix Button", @"kEnableHideShortsRemix", @"", @""),
+            YTKACEToggle(@"Hide Audio Track Button", @"kEnableHideShortsAudioTrack", @"", @"")
         ]
     ], @[@"SHORTS", @"HIDE ELEMENTS"]);
 }
@@ -1285,15 +1295,14 @@ UIViewController *YTKACEMakeMiscOptionsController(void) {
         ],
         @[
             YTKACEToggle(@"Hide Search History", @"kEnableNoSearchedHistory", @"", @""),
-            YTKACEToggle(@"Hide Topic Section", @"kEnableNoTopics", @"", @""),
             YTKACEToggle(@"Hide Premium Popup", @"kEnableNoPremiumpopup", @"", @""),
             YTKACEToggle(@"Hide YouTube Update Popup", @"kEnableNoYTUpdate", @"", @""),
+            YTKACEToggle(@"Use Native Share Sheet", @"kEnableNativeShare", @"", @""),
             YTKACEToggle(@"Remove Launch Animation", @"kEnableRemoveLaunchAnimation",
                          @"Starts YouTube faster", @""),
             YTKACEToggle(@"Profile Picture Preview", @"kEnableProfilePictureViewer", @"", @""),
             YTKACEToggle(@"Enable Mini Player for All Videos", @"kEnableMiniPlayerAllVideos", @"", @""),
             YTKACEToggle(@"Hide HUD Alerts", @"kEnableHideHudeAlerts", @"", @""),
-            YTKACEToggle(@"Hide Paid Promotion Notice", @"kEnableNoPaidPromotion", @"", @""),
             YTKACEToggle(@"Disable RTL Languages", @"kEnableDisableRTL", @"", @""),
             YTKACEToggle(@"OLED Dark Mode", YTKACEOLEDKey, @"", @""),
             YTKACEToggle(@"Bypass Age Restriction", @"kEnableAgeRestriction", @"", @""),
@@ -1313,7 +1322,8 @@ UIViewController *YTKACEMakeGestureOptionsController(void) {
         ],
         @[
             YTKACEToggle(@"Hold to Seek", @"kEnableHoldToSeek", @"", @""),
-            YTKACESlider(@"Seek Duration", @"kSeekDuration", 1.0, 60.0, 1.0, 10.0)
+            YTKACESlider(@"Seek Duration", @"kSeekDuration", 1.0, 60.0, 1.0, 10.0),
+            YTKACEToggle(@"Tap to Seek", @"kEnableTapToSeek", @"", @"")
         ]
     ], @[@"VOLUME & BRIGHTNESS GESTURES", @"SEEK SETTINGS"]);
 }

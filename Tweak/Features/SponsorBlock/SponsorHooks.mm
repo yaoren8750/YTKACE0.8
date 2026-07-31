@@ -517,6 +517,8 @@ static void YTKACEPlayerBarLayout(UIView *receiver, SEL selector) {
         ((void (*)(id, SEL))OriginalPlayerBarLayout)(receiver, selector);
     }
 
+    YTKACEConfigureTapToSeek(receiver);
+
     [YTKACESponsorBars addObject:receiver];
     UIView *target = receiver;
     for (UIView *subview in receiver.subviews) {

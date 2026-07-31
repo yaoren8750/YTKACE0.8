@@ -9,8 +9,10 @@ NS_ASSUME_NONNULL_BEGIN
 FOUNDATION_EXPORT NSString * const YTKACEVersion;
 
 void YTKACEInstallAdsHooks(void);
+void YTKACEInstallPromoHooks(void);
 void YTKACEInstallSponsorBlockHooks(void);
 void YTKACEInstallDownloadHooks(void);
+NSString * _Nullable YTKACELastVideoID(void);
 void YTKACEInstallGlobalDownloadMiniPlayer(void);
 void YTKACEInstallOLEDHooks(void);
 void YTKACEInstallStartupHooks(void);
@@ -20,6 +22,7 @@ void YTKACEInstallPiPHooks(void);
 void YTKACEInstallSpeedHooks(void);
 void YTKACEInstallLoopHooks(void);
 void YTKACEInstallDoubleTapHooks(void);
+void YTKACEConfigureTapToSeek(UIView *view);
 void YTKACEInstallFixPlaybackHooks(void);
 void YTKACEInstallProgressBarHooks(void);
 void YTKACEApplyProgressStyleToBar(UIView *bar);
@@ -41,6 +44,7 @@ void YTKACEInstallNavigationVisibilityHooks(void);
 void YTKACEInstallMiscellaneousHooks(void);
 void YTKACEInstallCopyCommentHooks(void);
 void YTKACEInstallProfilePictureHooks(void);
+void YTKACEInstallNativeShareHooks(void);
 void YTKACEProfileConsiderDisplayView(UIView *view, id node);
 void YTKACEScheduleFirstLaunch(void);
 
