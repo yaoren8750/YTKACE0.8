@@ -32,28 +32,34 @@ Open the YTKACE tab and tap the gear, or open YouTube Settings and choose YTKACE
 
 ## Screenshots
 
-<table>
-  <tr>
-    <td align="center"><img src="screenshots/framed/settings.png" width="240"><br><b>Settings</b></td>
-    <td align="center"><img src="screenshots/framed/player-settings.png" width="240"><br><b>Player</b></td>
-    <td align="center"><img src="screenshots/framed/sponsorblock-settings.png" width="240"><br><b>SponsorBlock</b></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="screenshots/framed/tab-editor.png" width="240"><br><b>Tab Editor</b></td>
-    <td align="center"><img src="screenshots/framed/video-download-menu.png" width="240"><br><b>Video Downloads</b></td>
-    <td align="center"><img src="screenshots/framed/shorts-download-menu.png" width="240"><br><b>Shorts Downloads</b></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="screenshots/framed/download-library.png" width="240"><br><b>Library</b></td>
-    <td align="center"><img src="screenshots/framed/download-progress.png" width="240"><br><b>Download Progress</b></td>
-    <td align="center"><img src="screenshots/framed/video-player.png" width="240"><br><b>Video Player</b></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="screenshots/framed/audio-player.png" width="240"><br><b>Audio Player</b></td>
-    <td align="center"><img src="screenshots/framed/audio-queue.png" width="240"><br><b>Audio Queue</b></td>
-    <td></td>
-  </tr>
-</table>
+<p align="center">
+  <img src="screenshots/framed/settings.png" width="220" alt="YTKACE settings">
+  <img src="screenshots/framed/video-download-menu.png" width="220" alt="Video download menu">
+  <img src="screenshots/framed/audio-player.png" width="220" alt="Audio player">
+</p>
+
+<p align="center">
+  <sub>Settings · Downloads · Audio Player</sub>
+</p>
+
+<details>
+  <summary>More screenshots</summary>
+  <br>
+  <p align="center">
+    <img src="screenshots/framed/shorts-download-menu.png" width="190" alt="Shorts download menu">
+    <img src="screenshots/framed/tab-editor.png" width="190" alt="Tab editor">
+    <img src="screenshots/framed/download-progress.png" width="190" alt="Download progress">
+  </p>
+  <p align="center">
+    <img src="screenshots/framed/download-library.png" width="190" alt="Download library">
+    <img src="screenshots/framed/video-player.png" width="190" alt="Downloaded video player">
+    <img src="screenshots/framed/player-settings.png" width="190" alt="Player settings">
+  </p>
+  <p align="center">
+    <img src="screenshots/framed/sponsorblock-settings.png" width="190" alt="SponsorBlock settings">
+    <img src="screenshots/framed/audio-queue.png" width="190" alt="Audio queue">
+  </p>
+</details>
 
 ## Privacy
 
