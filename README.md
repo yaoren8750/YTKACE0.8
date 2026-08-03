@@ -17,7 +17,7 @@ An open-source YouTube enhancement for iOS.
 
 - **iOS:** 16.0 and newer
 - **Architecture:** arm64
-- **Latest confirmed YouTube:** 21.30.5
+- **Latest confirmed YouTube:** 21.31.3
 - **YTKACE:** 0.8.0
 
 The same injected IPA can be installed with TrollStore or a developer-certificate sideloader.
@@ -64,6 +64,10 @@ Open the YTKACE tab and tap the gear, or open YouTube Settings and choose YTKACE
 ## Privacy
 
 YTKACE has no activation service, analytics, telemetry or updater.
+
+## A note to iKarwan
+
+YTKACE 0.8.0 contains zero YTKPlus code. It was independently written with its own UI, assets, and structure, and copyright does not cover features or general similarities alone. I would have preferred to discuss this privately, but I was blocked on Telegram before the claims were made publicly through tweets and a DMCA notice. If you believe any copyrighted material remains, please show me exactly where and I will review it.
 
 ## License
 
