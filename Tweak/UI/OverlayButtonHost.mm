@@ -17,8 +17,15 @@ static const void *YTKACEOverlayAlignmentAssociation = &YTKACEOverlayAlignmentAs
 static NSMutableArray<NSDictionary *> *YTKACEOverlayConfigurators;
 static BOOL YTKACENativeControlsVisible = YES;
 
-static UIView *YTKACEFindSettingsControl(UIView *view, UIView *host) {
-    if (view == host) return nil;
+static void YTKACEFindSettingsControlInView(UIView *view,
+                                            UIView *excluded,
+                                            UIView *coordinateView,
+                                            UIView **best,
+                                            CGFloat *bestScore) {
+    if (view == excluded || [view isDescendantOfView:excluded] ||
+        view.hidden || view.alpha < 0.05) {
+        return;
+    }
     NSString *hint = [[NSString stringWithFormat:@"%@ %@ %@",
         view.accessibilityIdentifier ?: @"", view.accessibilityLabel ?: @"",
         NSStringFromClass(view.class)] lowercaseString];
@@ -26,13 +33,37 @@ static UIView *YTKACEFindSettingsControl(UIView *view, UIView *host) {
          [view isKindOfClass:UIImageView.class]) &&
         ([hint containsString:@"settings"] || [hint containsString:@"gear"]) &&
         !CGRectIsEmpty(view.bounds)) {
-        return view;
+        CGRect frame = [view convertRect:view.bounds toView:coordinateView];
+        CGFloat width = CGRectGetWidth(coordinateView.bounds);
+        CGFloat height = CGRectGetHeight(coordinateView.bounds);
+        CGFloat centerX = CGRectGetMidX(frame);
+        CGFloat centerY = CGRectGetMidY(frame);
+        if (isfinite(centerX) && isfinite(centerY) &&
+            centerX > width * 0.55 && centerY < height * 0.35 &&
+            CGRectIntersectsRect(frame, coordinateView.bounds)) {
+            CGFloat score = centerX - centerY * 0.2;
+            if (*best == nil || score > *bestScore) {
+                *best = view;
+                *bestScore = score;
+            }
+        }
     }
     for (UIView *subview in view.subviews) {
-        UIView *match = YTKACEFindSettingsControl(subview, host);
-        if (match != nil) return match;
+        YTKACEFindSettingsControlInView(subview, excluded, coordinateView,
+                                        best, bestScore);
     }
-    return nil;
+}
+
+static UIView *YTKACEFindSettingsControl(UIView *overlay, UIView *excluded) {
+    UIView *best = nil;
+    CGFloat bestScore = -CGFLOAT_MAX;
+    YTKACEFindSettingsControlInView(overlay, excluded, overlay,
+                                    &best, &bestScore);
+    if (best == nil && overlay.window != nil) {
+        YTKACEFindSettingsControlInView(overlay.window, excluded, overlay,
+                                        &best, &bestScore);
+    }
+    return best;
 }
 
 static NSMutableDictionary *YTKACEAlignmentState(UIView *overlay) {
@@ -59,24 +90,28 @@ static BOOL YTKACEAlignOverlayStack(UIView *overlay, UIStackView *stack) {
         [state removeAllObjects];
         state[@"size"] = [NSValue valueWithCGSize:size];
     }
-    if ([state[@"ready"] boolValue]) return YES;
-
     UIWindow *window = overlay.window;
     CGSize windowSize = window != nil ? window.bounds.size : CGSizeZero;
     BOOL fillsLandscapeWindow = windowSize.width > windowSize.height &&
         CGRectGetWidth(overlay.bounds) >= windowSize.width * 0.94;
     CGFloat constant = fillsLandscapeWindow ? -20.0 : -8.0;
+    NSNumber *previous = state[@"constant"];
+    BOOL hasGearAlignment = [state[@"hasGearAlignment"] boolValue];
     UIView *gear = YTKACEFindSettingsControl(overlay, stack);
     if (gear != nil) {
         CGRect frame = [gear.superview convertRect:gear.frame toView:overlay];
         CGFloat safeTrailing = CGRectGetMaxX(overlay.safeAreaLayoutGuide.layoutFrame);
         CGFloat center = CGRectGetMidX(frame);
         if (isfinite(center) && center > 0.0 && safeTrailing > 0.0) {
-            constant = MIN(4.0, MAX(-44.0, center + 20.0 - safeTrailing));
+            constant = MIN(20.0, MAX(-160.0,
+                center + 20.0 - safeTrailing));
+            hasGearAlignment = YES;
+            state[@"hasGearAlignment"] = @YES;
         }
+    } else if (hasGearAlignment && previous != nil) {
+        constant = previous.doubleValue;
     }
 
-    NSNumber *previous = state[@"constant"];
     NSUInteger stable = [state[@"stable"] unsignedIntegerValue];
     if (previous != nil && fabs(previous.doubleValue - constant) < 0.5) {
         stable += 1;
@@ -85,9 +120,11 @@ static BOOL YTKACEAlignOverlayStack(UIView *overlay, UIStackView *stack) {
     }
     state[@"constant"] = @(constant);
     state[@"stable"] = @(stable);
-    trailing.constant = constant;
+    [UIView performWithoutAnimation:^{
+        trailing.constant = constant;
+    }];
 
-    BOOL ready = gear == nil || stable >= 2;
+    BOOL ready = hasGearAlignment || stable >= 2;
     state[@"ready"] = @(ready);
     if (!ready) {
         dispatch_async(dispatch_get_main_queue(), ^{

@@ -20,7 +20,7 @@ static UIColor *YTKACERootBackground(void) {
 
 static UIColor *YTKACERootCellBackground(void) {
     return [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *traits) {
-        return YTKACEInterfaceSurfaceColor(traits);
+        return YTKACEInterfaceBackgroundColor(traits);
     }];
 }
 

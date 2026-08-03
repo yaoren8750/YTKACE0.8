@@ -241,8 +241,8 @@ static void YTKACEPositionShortsDownload(UIView *host,
         }
         if (constraints == nil) {
             constraints = @[
-                [download.widthAnchor constraintEqualToConstant:40.0],
-                [download.heightAnchor constraintEqualToConstant:40.0],
+                [download.widthAnchor constraintEqualToConstant:36.0],
+                [download.heightAnchor constraintEqualToConstant:36.0],
                 [download.trailingAnchor constraintEqualToAnchor:
                     host.safeAreaLayoutGuide.trailingAnchor constant:-12.0],
                 [download.topAnchor constraintEqualToAnchor:
@@ -264,16 +264,16 @@ static void YTKACEPositionShortsDownload(UIView *host,
     CGFloat centerX = CGRectGetWidth(host.bounds) - 32.0;
     CGFloat top = host.safeAreaInsets.top + 65.0;
     if (action == nil && !CGRectIsEmpty(download.frame) &&
-        CGRectGetWidth(download.frame) >= 39.0) {
+        CGRectGetWidth(download.frame) >= 35.0) {
         return;
     }
     if (action != nil) {
         CGRect frame = [action convertRect:action.bounds toView:host];
         centerX = CGRectGetMidX(frame);
-        top = CGRectGetMinY(frame) - 52.0;
+        top = CGRectGetMinY(frame) - 48.0;
     }
     top = MAX(host.safeAreaInsets.top + 52.0, top);
-    download.frame = CGRectMake(round(centerX - 20.0), round(top), 40.0, 40.0);
+    download.frame = CGRectMake(round(centerX - 18.0), round(top), 36.0, 36.0);
     download.autoresizingMask =
         UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleTopMargin;
 }
@@ -551,6 +551,11 @@ static void YTKACEConfigureReelView(UIView *receiver, BOOL showDownload) {
         download.tintColor = UIColor.whiteColor;
         [download setImage:YTKACEDownloadGlyphImage()
                   forState:UIControlStateNormal];
+        UIImageSymbolConfiguration *configuration =
+            [UIImageSymbolConfiguration configurationWithPointSize:20.0
+                                                            weight:UIImageSymbolWeightMedium];
+        [download setPreferredSymbolConfiguration:configuration
+                                  forImageInState:UIControlStateNormal];
         download.layer.shadowColor = UIColor.blackColor.CGColor;
         download.layer.shadowOpacity = 0.55;
         download.layer.shadowRadius = 4.0;

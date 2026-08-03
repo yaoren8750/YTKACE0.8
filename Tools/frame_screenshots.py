@@ -1,63 +1,64 @@
 from pathlib import Path
 
-from PIL import Image, ImageChops, ImageDraw
+from PIL import Image, ImageDraw
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "screenshots"
-OUTPUT = SOURCE / "framed"
-BEZEL = SOURCE / "iphone-bezel.png"
+SOURCE = ROOT / "screenshots" / "source"
+OUTPUT = ROOT / "screenshots" / "framed"
+FRAME = ROOT / "screenshots" / "phone-template-product-red.png"
 NAMES = (
-    "settings.png",
-    "shorts-download-menu.png",
-    "video-download-menu.png",
-    "tab-editor.png",
-    "shorts-library.png",
-    "shorts-player.png",
-    "download-progress.png",
-    "audio-library.png",
-    "audio-player.png",
-    "audio-queue.png",
+    "settings",
+    "player-settings",
+    "sponsorblock-settings",
+    "tab-editor",
+    "video-download-menu",
+    "shorts-download-menu",
+    "download-library",
+    "download-progress",
+    "video-player",
+    "audio-player",
+    "audio-queue",
 )
 
 
-def make_overlay(bezel):
-    overlay = bezel.copy()
-    red, green, blue, alpha = bezel.split()
-    white = ImageChops.darker(ImageChops.darker(red, green), blue)
-    white = white.point(lambda value: 255 if value >= 250 else 0)
-
-    interior = Image.new("L", bezel.size, 0)
-    ImageDraw.Draw(interior).rectangle((175, 165, 1425, 2835), fill=255)
-    opening = ImageChops.multiply(white, interior)
-    overlay.putalpha(ImageChops.subtract(alpha, opening))
-    return overlay, opening
-
-
-def cover(image, size):
-    scale = max(size[0] / image.width, size[1] / image.height)
+def contain(image, size):
+    scale = min(size[0] / image.width, size[1] / image.height)
     resized = image.resize(
         (round(image.width * scale), round(image.height * scale)),
         Image.Resampling.LANCZOS,
     )
-    left = (resized.width - size[0]) // 2
-    top = (resized.height - size[1]) // 2
-    return resized.crop((left, top, left + size[0], top + size[1]))
+    canvas = Image.new("RGBA", size, (0, 0, 0, 255))
+    left = (size[0] - resized.width) // 2
+    top = (size[1] - resized.height) // 2
+    canvas.alpha_composite(resized, (left, top))
+    return canvas
 
 
-def frame(path, overlay, opening):
-    display = opening.getbbox()
-    screen_size = (display[2] - display[0], display[3] - display[1])
-    screen = cover(Image.open(path).convert("RGBA"), screen_size)
-    canvas = Image.new("RGBA", overlay.size, (0, 0, 0, 0))
-    canvas.paste(screen, display[:2], opening.crop(display))
-    canvas.alpha_composite(overlay)
+def source_path(name):
+    for suffix in (".png", ".jpg", ".jpeg"):
+        path = SOURCE / f"{name}{suffix}"
+        if path.exists():
+            return path
+    raise FileNotFoundError(name)
+
+
+def frame(path, phone):
+    display = (191, 109, 833, 1454)
+    size = (display[2] - display[0], display[3] - display[1])
+    screen = contain(Image.open(path).convert("RGBA"), size)
+    mask = Image.new("L", phone.size, 0)
+    ImageDraw.Draw(mask).rounded_rectangle(display, radius=76, fill=255)
+
+    canvas = Image.new("RGBA", phone.size, (0, 0, 0, 0))
+    canvas.paste(screen, display[:2], mask.crop(display))
+    canvas.alpha_composite(phone)
+
     OUTPUT.mkdir(parents=True, exist_ok=True)
-    result = canvas.resize((800, 1500), Image.Resampling.LANCZOS)
-    result.save(OUTPUT / path.name, optimize=True)
+    result = canvas.resize((800, 1200), Image.Resampling.LANCZOS)
+    result.save(OUTPUT / f"{path.stem}.png", optimize=True)
 
 
-bezel_image = Image.open(BEZEL).convert("RGBA")
-bezel_overlay, display_mask = make_overlay(bezel_image)
+phone_image = Image.open(FRAME).convert("RGBA")
 for name in NAMES:
-    frame(SOURCE / name, bezel_overlay, display_mask)
+    frame(source_path(name), phone_image)

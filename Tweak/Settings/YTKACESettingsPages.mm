@@ -183,7 +183,7 @@ static UIColor *YTKACESettingsBackground(void) {
 
 static UIColor *YTKACESettingsCellBackground(void) {
     return [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *traits) {
-        return YTKACEInterfaceSurfaceColor(traits);
+        return YTKACEInterfaceBackgroundColor(traits);
     }];
 }
 
@@ -553,6 +553,9 @@ willDisplayHeaderView:(UIView *)view
         cell = [[UITableViewCell alloc] initWithStyle:style reuseIdentifier:identifier];
     }
 
+    [[cell.contentView viewWithTag:8801] removeFromSuperview];
+    [[cell.contentView viewWithTag:8802] removeFromSuperview];
+
     cell.textLabel.text = item[@"title"];
     cell.detailTextLabel.text = item[@"subtitle"];
     cell.textLabel.font = [UIFont systemFontOfSize:17.0];
@@ -597,11 +600,6 @@ willDisplayHeaderView:(UIView *)view
                     action:@selector(segmentChanged:)
           forControlEvents:UIControlEventValueChanged];
         if ([item[@"stacked"] boolValue]) {
-            for (UIView *existing in cell.contentView.subviews) {
-                if (existing.tag == 8801 || existing.tag == 8802) {
-                    [existing removeFromSuperview];
-                }
-            }
             UILabel *caption = [UILabel new];
             caption.tag = 8802;
             caption.text = item[@"title"];
