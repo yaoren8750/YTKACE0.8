@@ -3,7 +3,7 @@
 
 #import <UIKit/UIKit.h>
 
-static NSString * const YTKACEOnboardingKey = @"YTKACEDidShowOnboardingV1";
+static NSString * const YTKACEOnboardingKey = @"YTKACE.Preference.Onboarding.Shown";
 
 @interface YTKACEFirstLaunchFlow : NSObject <NSNetServiceBrowserDelegate>
 @property(nonatomic, strong) NSNetServiceBrowser *browser;

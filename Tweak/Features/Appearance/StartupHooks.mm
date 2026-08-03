@@ -77,7 +77,7 @@ static void YTKACEStartupViewDidAppear(UIViewController *receiver,
         YTKACEStartupBlacken(receiver.view);
         receiver.view.window.backgroundColor = UIColor.blackColor;
     }
-    if (YTKACEFeatureEnabled(@"kEnableRemoveLaunchAnimation")) {
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Appearance.LaunchAnimationDisabled")) {
         dispatch_async(dispatch_get_main_queue(), ^{
             YTKACEFinishStartup(receiver);
         });

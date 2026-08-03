@@ -25,6 +25,7 @@ static UIUserInterfaceStyle YTKACENavigationStyle = UIUserInterfaceStyleUnspecif
 static void YTKACEApplyNavigationWindows(void);
 static void YTKACEApplyNavigationSelectors(id owner);
 static BOOL YTKACEInsideRightNavigation(UIView *view);
+static BOOL YTKACEIsNavigationIcon(UIView *view);
 
 static NSValue *YTKACENavigationIMPValue(IMP implementation) {
     return [NSValue value:&implementation withObjCType:@encode(IMP)];
@@ -88,31 +89,10 @@ static id YTKACENotificationButton(id receiver, SEL selector) {
     if ([value isKindOfClass:UIView.class]) {
         YTKACESetNavigationHidden(
             value,
-            YTKACEFeatureEnabled(@"kEnableHideNotificationBill")
+            YTKACEFeatureEnabled(@"YTKACE.Preference.Navigation.NotificationsHidden")
         );
     }
     return value;
-}
-
-static BOOL YTKACEHideNotificationButton(id receiver, SEL selector) {
-    IMP original = YTKACENavigationOriginal(receiver, selector);
-    BOOL hidden = original == NULL
-        ? NO
-        : ((BOOL (*)(id, SEL))original)(receiver, selector);
-    return hidden || YTKACEFeatureEnabled(@"kEnableHideNotificationBill");
-}
-
-static void YTKACESetHideNotificationButton(id receiver,
-                                             SEL selector,
-                                             BOOL hidden) {
-    IMP original = YTKACENavigationOriginal(receiver, selector);
-    if (original != NULL) {
-        ((void (*)(id, SEL, BOOL))original)(
-            receiver,
-            selector,
-            hidden || YTKACEFeatureEnabled(@"kEnableHideNotificationBill")
-        );
-    }
 }
 
 static void YTKACEInstallNavigationMethodHooks(void) {
@@ -127,11 +107,7 @@ static void YTKACEInstallNavigationMethodHooks(void) {
         @"notificationButton":
             YTKACENavigationIMPValue((IMP)YTKACENotificationButton),
         @"newNotificationButton":
-            YTKACENavigationIMPValue((IMP)YTKACENotificationButton),
-        @"hideNotificationButton":
-            YTKACENavigationIMPValue((IMP)YTKACEHideNotificationButton),
-        @"setHideNotificationButton:":
-            YTKACENavigationIMPValue((IMP)YTKACESetHideNotificationButton)
+            YTKACENavigationIMPValue((IMP)YTKACENotificationButton)
     };
     void (^applyTargets)(NSArray<NSString *> *) =
         ^(NSArray<NSString *> *targets) {
@@ -159,9 +135,7 @@ static void YTKACEInstallNavigationMethodHooks(void) {
 static void YTKACEDiscoverNavigationMethodHooks(void) {
     NSSet<NSString *> *selectors = [NSSet setWithArray:@[
         @"notificationButton",
-        @"newNotificationButton",
-        @"hideNotificationButton",
-        @"setHideNotificationButton:"
+        @"newNotificationButton"
     ]];
     int count = objc_getClassList(NULL, 0);
     if (count <= 0) return;
@@ -196,27 +170,28 @@ static void YTKACEDiscoverNavigationMethodHooks(void) {
 }
 
 static BOOL YTKACENavigationShouldHide(UIView *view) {
+    if (!YTKACEIsNavigationIcon(view)) return NO;
     NSString *token = [[NSString stringWithFormat:@"%@ %@ %@",
                         NSStringFromClass(view.class),
                         view.accessibilityIdentifier ?: @"",
                         view.accessibilityLabel ?: @""] lowercaseString];
-    if (YTKACEFeatureEnabled(@"kEnableHideAccount") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Navigation.AccountHidden") &&
         ([token containsString:@"account"] ||
          [token containsString:@"avatar"] ||
          [token containsString:@"profile"])) {
         return YES;
     }
-    if (YTKACEFeatureEnabled(@"kEnableHideSearch") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Navigation.SearchHidden") &&
         [token containsString:@"search"]) {
         return YES;
     }
-    if (YTKACEFeatureEnabled(@"kEnableHideCastButton") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Navigation.CastHidden") &&
         ([token containsString:@"cast"] ||
          [token containsString:@"airplay"] ||
          [token containsString:@"routebutton"])) {
         return YES;
     }
-    if (YTKACEFeatureEnabled(@"kEnableHideNotificationBill") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Navigation.NotificationsHidden") &&
         ([token containsString:@"notification"] ||
          [token containsString:@"bell"])) {
         return YES;
@@ -360,13 +335,13 @@ static UIView *YTKACENavigationValue(id owner, NSString *name) {
 
 static void YTKACEApplyNavigationSelectors(id owner) {
     NSDictionary<NSString *, NSArray<NSString *> *> *groups = @{
-        @"kEnableHideNotificationBill": @[
+        @"YTKACE.Preference.Navigation.NotificationsHidden": @[
             @"notificationButton", @"newNotificationButton",
             @"notificationBellButton", @"notificationBellView"
         ],
-        @"kEnableHideSearch": @[@"searchButton"],
-        @"kEnableHideCastButton": @[@"castButton"],
-        @"kEnableHideAccount": @[@"accountButton", @"avatarButton"]
+        @"YTKACE.Preference.Navigation.SearchHidden": @[@"searchButton"],
+        @"YTKACE.Preference.Navigation.CastHidden": @[@"castButton"],
+        @"YTKACE.Preference.Navigation.AccountHidden": @[@"accountButton", @"avatarButton"]
     };
     for (NSString *key in groups) {
         BOOL hidden = YTKACEFeatureEnabled(key);
@@ -397,7 +372,7 @@ static void YTKACEHeaderLogoLayout(UIView *receiver, SEL selector) {
     }
     YTKACESetNavigationHidden(
         receiver,
-        YTKACEFeatureEnabled(@"kEnableHideYTLogo")
+        YTKACEFeatureEnabled(@"YTKACE.Preference.Navigation.LogoHidden")
     );
 }
 
@@ -407,7 +382,7 @@ static void YTKACELogoViewLayout(UIView *receiver, SEL selector) {
     }
     YTKACESetNavigationHidden(
         receiver,
-        YTKACEFeatureEnabled(@"kEnableHideYTLogo")
+        YTKACEFeatureEnabled(@"YTKACE.Preference.Navigation.LogoHidden")
     );
 }
 
@@ -420,14 +395,14 @@ static void YTKACEQTMButtonLayout(UIView *receiver, SEL selector) {
         [label isEqualToString:@"notification"]) {
         YTKACESetNavigationHidden(
             receiver,
-            YTKACEFeatureEnabled(@"kEnableHideNotificationBill")
+            YTKACEFeatureEnabled(@"YTKACE.Preference.Navigation.NotificationsHidden")
         );
     } else if ([label isEqualToString:@"search"] ||
                [receiver.accessibilityIdentifier
                    isEqualToString:@"id.ui.navigation.search.button"]) {
         YTKACESetNavigationHidden(
             receiver,
-            YTKACEFeatureEnabled(@"kEnableHideSearch")
+            YTKACEFeatureEnabled(@"YTKACE.Preference.Navigation.SearchHidden")
         );
     }
     if (YTKACEFeatureEnabled(YTKACEOLEDKey) &&
@@ -544,7 +519,7 @@ static void YTKACEYTImageViewLayout(UIView *receiver, SEL selector) {
          [label caseInsensitiveCompare:@"YouTube"] == NSOrderedSame)) {
         YTKACESetNavigationHidden(
             receiver,
-            YTKACEFeatureEnabled(@"kEnableHideYTLogo")
+            YTKACEFeatureEnabled(@"YTKACE.Preference.Navigation.LogoHidden")
         );
     }
 }

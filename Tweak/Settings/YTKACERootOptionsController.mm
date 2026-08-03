@@ -20,7 +20,7 @@ static UIColor *YTKACERootBackground(void) {
 
 static UIColor *YTKACERootCellBackground(void) {
     return [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *traits) {
-        return YTKACEInterfaceBackgroundColor(traits);
+        return YTKACEInterfaceSurfaceColor(traits);
     }];
 }
 
@@ -32,6 +32,11 @@ static UIImage *YTKACETemplateImage(NSString *asset, NSString *symbol) {
 static UIImage *YTKACESponsorIcon(void) {
     return YTKACETemplateImage(@"sponsorblock_shield_template",
                                @"play.shield");
+}
+
+static UIImage *YTKACEShortsIcon(void) {
+    return [YTKACEShortsImage(NO)
+        imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
 }
 
 static const void *YTKACEDismissTargetKey = &YTKACEDismissTargetKey;
@@ -161,15 +166,15 @@ void YTKACEApplyAppearance(UIViewController *controller) {
 @implementation YTKACERootOptionsController
 
 - (instancetype)init {
-    return [super initWithStyle:UITableViewStylePlain];
+    return [super initWithStyle:UITableViewStyleGrouped];
 }
 
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.tableView.cellLayoutMarginsFollowReadableWidth = NO;
     self.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
-    self.tableView.sectionHeaderHeight = 18.0;
-    self.tableView.sectionFooterHeight = 4.0;
+    self.tableView.sectionHeaderHeight = 22.0;
+    self.tableView.sectionFooterHeight = 6.0;
     self.settingsHeader = [self makeSettingsHeader];
     self.tableView.tableHeaderView = self.settingsHeader;
     UILongPressGestureRecognizer *developerHold =
@@ -190,7 +195,7 @@ void YTKACEApplyAppearance(UIViewController *controller) {
     if (recognizer.state != UIGestureRecognizerStateBegan) return;
     NSIndexPath *indexPath = [self.tableView indexPathForRowAtPoint:
         [recognizer locationInView:self.tableView]];
-    if (indexPath.section == 3 && indexPath.row == 0) {
+    if (indexPath.section == 4 && indexPath.row == 0) {
         [self showDownloadLog];
     }
 }
@@ -222,61 +227,40 @@ void YTKACEApplyAppearance(UIViewController *controller) {
     if (width <= 0.0) {
         width = CGRectGetWidth(self.view.bounds);
     }
-    UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, width, 128.0)];
+    UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, width, 122.0)];
     header.autoresizingMask = UIViewAutoresizingFlexibleWidth;
 
     UIButton *close = [UIButton buttonWithType:UIButtonTypeSystem];
     close.frame = CGRectMake(8.0, 8.0, 40.0, 40.0);
-    [close setImage:YTKACETemplateImage(@"close_20pt_3x_Normal", @"xmark")
+    [close setImage:YTKACETemplateImage(@"", @"xmark")
             forState:UIControlStateNormal];
     close.tintColor = UIColor.labelColor;
     close.accessibilityLabel = YTKACELocalized(@"Close");
     [close addTarget:self action:@selector(closeSettings) forControlEvents:UIControlEventTouchUpInside];
     [header addSubview:close];
 
-    UIButton *language = [UIButton buttonWithType:UIButtonTypeSystem];
-    language.frame = CGRectMake(width - 88.0, 8.0, 40.0, 40.0);
-    language.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin;
-    [language setImage:YTKACETemplateImage(@"translate_symbol_Normal", @"character.book.closed")
-               forState:UIControlStateNormal];
-    language.tintColor = UIColor.labelColor;
-    language.accessibilityLabel = YTKACELocalized(@"Language");
-    [language addTarget:self action:@selector(showLanguageInfo) forControlEvents:UIControlEventTouchUpInside];
-    [header addSubview:language];
-
     UIButton *apply = [UIButton buttonWithType:UIButtonTypeSystem];
     apply.frame = CGRectMake(width - 48.0, 8.0, 40.0, 40.0);
     apply.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin;
-    [apply setImage:YTKACETemplateImage(@"check_24pt_3x_Normal", @"checkmark")
+    [apply setImage:YTKACETemplateImage(@"", @"checkmark")
             forState:UIControlStateNormal];
     apply.tintColor = UIColor.labelColor;
     apply.accessibilityLabel = YTKACELocalized(@"Apply Settings");
     [apply addTarget:self action:@selector(applySettings) forControlEvents:UIControlEventTouchUpInside];
     [header addSubview:apply];
 
-    UIImageView *logo = [[UIImageView alloc] initWithImage:YTKACEAssetImage(@"YTKIco", @"play.square.fill")];
-    logo.frame = CGRectMake((width - 26.0) * 0.5, 11.0, 26.0, 26.0);
-    logo.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin;
-    logo.contentMode = UIViewContentModeScaleAspectFit;
-    [header addSubview:logo];
-
-    UIView *topSeparator = [[UIView alloc] initWithFrame:CGRectMake(0.0, 49.5, width, 0.5)];
-    topSeparator.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    topSeparator.backgroundColor = UIColor.separatorColor;
-    [header addSubview:topSeparator];
-
-    UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(48.0, 61.0, width - 96.0, 32.0)];
+    UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(56.0, 55.0, width - 112.0, 34.0)];
     title.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     title.text = @"YTKACE";
-    title.font = [UIFont boldSystemFontOfSize:29.0];
+    title.font = [UIFont systemFontOfSize:28.0 weight:UIFontWeightBold];
     title.textAlignment = NSTextAlignmentCenter;
     title.textColor = UIColor.labelColor;
     [header addSubview:title];
 
-    UILabel *version = [[UILabel alloc] initWithFrame:CGRectMake(48.0, 95.0, width - 96.0, 18.0)];
+    UILabel *version = [[UILabel alloc] initWithFrame:CGRectMake(56.0, 89.0, width - 112.0, 20.0)];
     version.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     version.text = [NSString stringWithFormat:@"v%@", YTKACEVersion];
-    version.font = [UIFont systemFontOfSize:13.0 weight:UIFontWeightSemibold];
+    version.font = [UIFont systemFontOfSize:13.0 weight:UIFontWeightMedium];
     version.textAlignment = NSTextAlignmentCenter;
     version.textColor = UIColor.secondaryLabelColor;
     [header addSubview:version];
@@ -286,28 +270,30 @@ void YTKACEApplyAppearance(UIViewController *controller) {
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
     (void)tableView;
-    return 4;
+    return 5;
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     (void)tableView;
     switch (section) {
         case 0: return 1;
-        case 1: return 6;
+        case 1: return 4;
         case 2: return 5;
         case 3: return 2;
+        case 4: return 2;
         default: return 0;
     }
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
     (void)tableView;
-    return section == 3 ? @"DEVELOPER" : nil;
+    return @[@"", @"MAIN", @"VIDEO", @"APP", @"ABOUT"][(NSUInteger)section];
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
     (void)tableView;
-    return section == 0 ? @"Tap the top-right button to apply changes." : nil;
+    (void)section;
+    return nil;
 }
 
 - (NSString *)deviceInformationText {
@@ -317,30 +303,43 @@ void YTKACEApplyAppearance(UIViewController *controller) {
     NSDictionary *info = NSBundle.mainBundle.infoDictionary;
     NSString *youtubeVersion = info[@"CFBundleShortVersionString"] ?: @"Unknown";
     NSString *bundleID = NSBundle.mainBundle.bundleIdentifier ?: @"com.google.ios.youtube";
-    return [NSString stringWithFormat:@"v%@ - v%@ ✓ (Compatible)\n%@\n%@ - iOS %@",
+    return [NSString stringWithFormat:@"YTKACE %@  •  YouTube %@\n%@\n%@  •  iOS %@",
         YTKACEVersion, youtubeVersion, bundleID, model,
         UIDevice.currentDevice.systemVersion];
 }
 
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
     (void)tableView;
-    if (indexPath.section == 0) {
-        return 70.0;
-    }
-    if (indexPath.section == 1 && indexPath.row == 0) {
-        return 62.0;
-    }
-    if (indexPath.section == 3 && indexPath.row == 1) {
+    if (indexPath.section == 0) return 68.0;
+    if (indexPath.section == 4 && indexPath.row == 1) {
         return 92.0;
     }
-    return 46.0;
+    return 62.0;
 }
 
 - (CGFloat)tableView:(UITableView *)tableView heightForHeaderInSection:(NSInteger)section {
     (void)tableView;
-    if (section == 0) return 0.01;
-    if (section == 3) return 30.0;
-    return 12.0;
+    return section == 0 ? 1.0 : 30.0;
+}
+
+- (CGFloat)tableView:(UITableView *)tableView heightForFooterInSection:(NSInteger)section {
+    (void)tableView;
+    return section == 0 ? 40.0 : 8.0;
+}
+
+- (UIView *)tableView:(UITableView *)tableView viewForFooterInSection:(NSInteger)section {
+    if (section != 0) return nil;
+    UIView *footer = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0,
+        CGRectGetWidth(tableView.bounds), 40.0)];
+    footer.backgroundColor = YTKACERootBackground();
+    UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(24.0, 0.0,
+        MAX(0.0, CGRectGetWidth(tableView.bounds) - 48.0), 18.0)];
+    label.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    label.text = @"Tap the checkmark to apply changes.";
+    label.font = [UIFont systemFontOfSize:13.0];
+    label.textColor = UIColor.secondaryLabelColor;
+    [footer addSubview:label];
+    return footer;
 }
 
 - (UITableViewCell *)baseCellForTableView:(UITableView *)tableView
@@ -353,7 +352,7 @@ void YTKACEApplyAppearance(UIViewController *controller) {
     cell.backgroundColor = YTKACERootCellBackground();
     cell.textLabel.text = nil;
     cell.detailTextLabel.text = nil;
-    cell.textLabel.font = [UIFont systemFontOfSize:18.0];
+    cell.textLabel.font = [UIFont systemFontOfSize:17.0];
     cell.detailTextLabel.font = [UIFont systemFontOfSize:12.0];
     cell.textLabel.textColor = UIColor.labelColor;
     cell.detailTextLabel.textColor = UIColor.secondaryLabelColor;
@@ -375,63 +374,92 @@ void YTKACEApplyAppearance(UIViewController *controller) {
          cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     if (indexPath.section == 0) {
         UITableViewCell *cell = [self baseCellForTableView:tableView style:UITableViewCellStyleSubtitle];
-        cell.textLabel.text = YTKACELocalized(@"Enable");
+        cell.textLabel.text = @"Enabled";
         cell.textLabel.font = [UIFont systemFontOfSize:18.0 weight:UIFontWeightSemibold];
-        cell.detailTextLabel.text = @"YTKACE features";
-        [self configureImageForCell:cell asset:@"on_off" symbol:@"power"];
-        UILabel *state = [UILabel new];
-        state.frame = CGRectMake(0.0, 0.0, 58.0, 40.0);
-        state.text = YTKACEMasterEnabled() ? @"Active" : @"Inactive";
-        state.textColor = YTKACEMasterEnabled() ? UIColor.systemGreenColor : UIColor.systemRedColor;
-        state.font = [UIFont systemFontOfSize:10.0 weight:UIFontWeightMedium];
-        state.textAlignment = NSTextAlignmentRight;
-        UISwitch *toggle = [UISwitch new];
-        toggle.transform = CGAffineTransformMakeScale(0.95, 0.95);
-        toggle.onTintColor = UIColor.systemBlueColor;
-        toggle.frame = CGRectMake(68.0, 4.5, toggle.intrinsicContentSize.width,
-                                  toggle.intrinsicContentSize.height);
-        toggle.on = YES;
-        toggle.enabled = NO;
-        UIView *accessory = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, 126.0, 40.0)];
-        [accessory addSubview:state];
-        [accessory addSubview:toggle];
-        cell.accessoryView = accessory;
+        cell.detailTextLabel.text = nil;
+        [self configureImageForCell:cell asset:@"" symbol:@"power"];
+        UILabel *status = [[UILabel alloc] initWithFrame:CGRectMake(0.0, 0.0, 72.0, 28.0)];
+        status.text = @"ACTIVE";
+        status.textAlignment = NSTextAlignmentCenter;
+        status.font = [UIFont systemFontOfSize:11.0 weight:UIFontWeightBold];
+        status.textColor = UIColor.systemGreenColor;
+        status.backgroundColor = [UIColor.systemGreenColor colorWithAlphaComponent:0.14];
+        status.layer.cornerRadius = 14.0;
+        status.layer.masksToBounds = YES;
+        cell.accessoryView = status;
         cell.selectionStyle = UITableViewCellSelectionStyleNone;
         return cell;
     }
 
     if (indexPath.section == 1) {
-        NSArray *titles = @[@"Player Controls", @"SponsorBlock", @"Tab Bar", @"Wi-Fi Quality", @"Cellular Quality", @"Gestures"];
-        NSArray *assets = @[@"play_square_stack_24pt_3x_Normal", @"", @"tab_bar_Google", @"wifi_symbol_Normal", @"hd_24pt_3x_Normal", @"gesture_swipe_left_24pt_3x_Normal"];
-        NSArray *symbols = @[@"play.rectangle", @"shield", @"list.bullet", @"wifi", @"antenna.radiowaves.left.and.right", @"hand.draw"];
-        UITableViewCellStyle style = indexPath.row == 0 ? UITableViewCellStyleSubtitle : UITableViewCellStyleValue1;
-        UITableViewCell *cell = [self baseCellForTableView:tableView style:style];
+        NSArray *titles = @[@"Player", @"SponsorBlock", @"Tabs", @"Gestures"];
+        NSArray *details = @[
+            @"Downloads, PiP, speed, loop, and background audio",
+            @"Skip or mark sponsored segments",
+            @"Choose, reorder, and rename tabs",
+            @"Brightness, volume, and seeking"
+        ];
+        NSArray *symbols = @[@"play.rectangle", @"play.shield",
+                             @"rectangle.bottomthird.inset.filled", @"hand.draw"];
+        UITableViewCell *cell = [self baseCellForTableView:tableView style:UITableViewCellStyleSubtitle];
         cell.textLabel.text = titles[(NSUInteger)indexPath.row];
-        [self configureImageForCell:cell asset:assets[(NSUInteger)indexPath.row] symbol:symbols[(NSUInteger)indexPath.row]];
+        cell.detailTextLabel.text = details[(NSUInteger)indexPath.row];
+        [self configureImageForCell:cell asset:@"" symbol:symbols[(NSUInteger)indexPath.row]];
         if (indexPath.row == 1) cell.imageView.image = YTKACESponsorIcon();
-        if (indexPath.row == 0) {
-            cell.detailTextLabel.text = YTKACELocalized(@"Downloads, background play, and more");
-        } else if (indexPath.row == 3) {
-            cell.detailTextLabel.text = YTKACEPickerSummary(@"wiFiPlaybackIndex", @[@"Auto", @"2160p60", @"2160p", @"1440p60", @"1440p", @"1080p60", @"1080p", @"720p60", @"720p", @"480p", @"360p", @"240p", @"144p"], @[@0, @1, @2, @3, @4, @5, @6, @7, @8, @9, @10, @11, @12], 0);
-        } else if (indexPath.row == 4) {
-            cell.detailTextLabel.text = YTKACEPickerSummary(@"celluarPlaybackIndex", @[@"Auto", @"2160p60", @"2160p", @"1440p60", @"1440p", @"1080p60", @"1080p", @"720p60", @"720p", @"480p", @"360p", @"240p", @"144p"], @[@0, @1, @2, @3, @4, @5, @6, @7, @8, @9, @10, @11, @12], 0);
-        }
-        cell.detailTextLabel.textColor = indexPath.row >= 3 && indexPath.row <= 4
-            ? UIColor.systemBlueColor
-            : UIColor.secondaryLabelColor;
-        cell.accessoryType = (indexPath.row == 3 || indexPath.row == 4)
-            ? UITableViewCellAccessoryNone
-            : UITableViewCellAccessoryDisclosureIndicator;
+        cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
         return cell;
     }
 
     if (indexPath.section == 2) {
-        NSArray *titles = @[@"Overlay", @"Streaming", @"Navigation Bar", @"Shorts", @"Miscellaneous"];
-        NSArray *assets = @[@"play_square_stack_24pt_3x_Normal", @"clapperboard_24pt_3x_Normal", @"nav_bar_google", @"shorts_24pt_3x_Normal", @"shuffle_24pt_3x_Normal"];
-        NSArray *symbols = @[@"rectangle.on.rectangle", @"film", @"rectangle.topthird.inset.filled", @"bolt", @"ellipsis"];
-        UITableViewCell *cell = [self baseCellForTableView:tableView style:UITableViewCellStyleDefault];
+        NSArray *titles = @[@"Overlay", @"Playback", @"Shorts",
+                            @"Wi-Fi Quality", @"Cellular Quality"];
+        NSArray *details = @[
+            @"Player controls and visibility",
+            @"Quality, autoplay, and skip settings",
+            @"Buttons, downloads, and feed options",
+            @"Preferred quality on Wi-Fi",
+            @"Preferred quality on mobile data"
+        ];
+        NSArray *symbols = @[@"rectangle.on.rectangle", @"playpause",
+                             @"", @"wifi", @"antenna.radiowaves.left.and.right"];
+        UITableViewCell *cell = [self baseCellForTableView:tableView style:UITableViewCellStyleSubtitle];
         cell.textLabel.text = titles[(NSUInteger)indexPath.row];
-        [self configureImageForCell:cell asset:assets[(NSUInteger)indexPath.row] symbol:symbols[(NSUInteger)indexPath.row]];
+        cell.detailTextLabel.text = details[(NSUInteger)indexPath.row];
+        if (indexPath.row == 2) {
+            cell.imageView.image = YTKACEShortsIcon();
+        } else {
+            [self configureImageForCell:cell asset:@"" symbol:symbols[(NSUInteger)indexPath.row]];
+        }
+        BOOL quality = indexPath.row >= 3;
+        if (!quality) {
+            cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+        } else {
+            NSString *key = indexPath.row == 3 ? @"YTKACE.Preference.Playback.WiFiQuality" : @"YTKACE.Preference.Playback.CellularQuality";
+            NSArray *options = @[@"Auto", @"2160p60", @"2160p", @"1440p60", @"1440p",
+                                 @"1080p60", @"1080p", @"720p60", @"720p", @"480p",
+                                 @"360p", @"240p", @"144p"];
+            NSArray *values = @[@0, @1, @2, @3, @4, @5, @6, @7, @8, @9, @10, @11, @12];
+            UILabel *value = [[UILabel alloc] initWithFrame:CGRectMake(0.0, 0.0, 66.0, 28.0)];
+            value.text = YTKACEPickerSummary(key, options, values, 0);
+            value.textAlignment = NSTextAlignmentRight;
+            value.font = [UIFont systemFontOfSize:15.0];
+            value.textColor = UIColor.systemBlueColor;
+            cell.accessoryView = value;
+        }
+        return cell;
+    }
+
+    if (indexPath.section == 3) {
+        NSArray *titles = @[@"Navigation", @"Other"];
+        NSArray *details = @[
+            @"Top bar buttons, logo, and cast",
+            @"Appearance, privacy, and compatibility"
+        ];
+        NSArray *symbols = @[@"rectangle.topthird.inset.filled", @"ellipsis.circle"];
+        UITableViewCell *cell = [self baseCellForTableView:tableView style:UITableViewCellStyleSubtitle];
+        cell.textLabel.text = titles[(NSUInteger)indexPath.row];
+        cell.detailTextLabel.text = details[(NSUInteger)indexPath.row];
+        [self configureImageForCell:cell asset:@"" symbol:symbols[(NSUInteger)indexPath.row]];
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
         return cell;
     }
@@ -456,17 +484,16 @@ void YTKACEApplyAppearance(UIViewController *controller) {
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
-    if (indexPath.section == 3 && indexPath.row == 0) {
-        NSURL *URL = [NSURL URLWithString:@"https://github.com/Epic0001/YTKACE"];
+    if (indexPath.section == 4 && indexPath.row == 0) {
+        NSURL *URL = [NSURL URLWithString:@"https://github.com/itzzace/YTKACE"];
         [UIApplication.sharedApplication openURL:URL options:@{}
                                completionHandler:nil];
         return;
     }
     UIViewController *controller = nil;
-    if (indexPath.section == 1) {
-        if (indexPath.row == 3 || indexPath.row == 4) {
+    if (indexPath.section == 2 && (indexPath.row == 3 || indexPath.row == 4)) {
             NSString *title = indexPath.row == 3 ? @"Wi-Fi Quality" : @"Cellular Quality";
-            NSString *key = indexPath.row == 3 ? @"wiFiPlaybackIndex" : @"celluarPlaybackIndex";
+            NSString *key = indexPath.row == 3 ? @"YTKACE.Preference.Playback.WiFiQuality" : @"YTKACE.Preference.Playback.CellularQuality";
             NSArray *titles = @[@"Auto", @"2160p60", @"2160p", @"1440p60", @"1440p",
                                 @"1080p60", @"1080p", @"720p60", @"720p", @"480p",
                                 @"360p", @"240p", @"144p"];
@@ -478,13 +505,12 @@ void YTKACEApplyAppearance(UIViewController *controller) {
                                           withRowAnimation:UITableViewRowAnimationNone];
                 });
             return;
-        }
+    }
+    if (indexPath.section == 1) {
         NSArray *builders = @[
             [^UIViewController *{ return YTKACEMakePlayerControlsController(); } copy],
             [^UIViewController *{ return YTKACEMakeSponsorBlockController(); } copy],
             [^UIViewController *{ return YTKACEMakeTabBarOptionsController(); } copy],
-            [^UIViewController *{ return nil; } copy],
-            [^UIViewController *{ return nil; } copy],
             [^UIViewController *{ return YTKACEMakeGestureOptionsController(); } copy]
         ];
         UIViewController *(^builder)(void) = builders[(NSUInteger)indexPath.row];
@@ -493,8 +519,15 @@ void YTKACEApplyAppearance(UIViewController *controller) {
         NSArray *builders = @[
             [^UIViewController *{ return YTKACEMakeOverlayOptionsController(); } copy],
             [^UIViewController *{ return YTKACEMakeStreamingOptionsController(); } copy],
-            [^UIViewController *{ return YTKACEMakeNavigationOptionsController(); } copy],
             [^UIViewController *{ return YTKACEMakeShortsOptionsController(); } copy],
+            [^UIViewController *{ return nil; } copy],
+            [^UIViewController *{ return nil; } copy]
+        ];
+        UIViewController *(^builder)(void) = builders[(NSUInteger)indexPath.row];
+        controller = builder();
+    } else if (indexPath.section == 3) {
+        NSArray *builders = @[
+            [^UIViewController *{ return YTKACEMakeNavigationOptionsController(); } copy],
             [^UIViewController *{ return YTKACEMakeMiscOptionsController(); } copy]
         ];
         UIViewController *(^builder)(void) = builders[(NSUInteger)indexPath.row];
@@ -523,10 +556,6 @@ void YTKACEApplyAppearance(UIViewController *controller) {
                    dispatch_get_main_queue(), ^{
         exit(0);
     });
-}
-
-- (void)showLanguageInfo {
-    YTKACEShowNotice(@"YTKACE follows your YouTube language.");
 }
 
 - (void)closeSettings {

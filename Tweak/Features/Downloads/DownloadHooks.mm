@@ -5,27 +5,15 @@
 #import "../../Runtime/Hooking.h"
 #import "../../Runtime/Preferences.h"
 #import "../../UI/OverlayButtonHost.h"
+#import "../../UI/Assets.h"
 #import <objc/message.h>
 
 UIImage *YTKACEDownloadGlyphImage(void) {
-    CGSize size = CGSizeMake(28.0, 28.0);
-    UIGraphicsBeginImageContextWithOptions(size, NO, 0.0);
-    CGContextRef context = UIGraphicsGetCurrentContext();
-    CGContextSetStrokeColorWithColor(context, UIColor.whiteColor.CGColor);
-    CGContextSetLineWidth(context, 2.4);
-    UIBezierPath *box = [UIBezierPath bezierPathWithRoundedRect:CGRectMake(3.0, 3.0, 22.0, 22.0)
-                                                   cornerRadius:4.0];
-    [box stroke];
-    CGContextMoveToPoint(context, 14.0, 7.0);
-    CGContextAddLineToPoint(context, 14.0, 15.5);
-    CGContextMoveToPoint(context, 10.0, 12.0);
-    CGContextAddLineToPoint(context, 14.0, 16.0);
-    CGContextAddLineToPoint(context, 18.0, 12.0);
-    CGContextMoveToPoint(context, 10.0, 20.0);
-    CGContextAddLineToPoint(context, 18.0, 20.0);
-    CGContextStrokePath(context);
-    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
-    UIGraphicsEndImageContext();
+    UIImageSymbolConfiguration *configuration =
+        [UIImageSymbolConfiguration configurationWithPointSize:22.0
+                                                        weight:UIImageSymbolWeightMedium];
+    UIImage *image = [YTKACEDownloadTabImage(NO)
+        imageByApplyingSymbolConfiguration:configuration];
     return [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
 }
 

@@ -38,7 +38,7 @@ static void YTKACEControlSendAction(UIControl *receiver,
         YTKACEStartCastDiscovery();
     }
     if (YTKACECastBypass ||
-        !YTKACEFeatureEnabled(@"kEnableCastconfirm") ||
+        !YTKACEFeatureEnabled(@"YTKACE.Preference.Navigation.CastConfirmation") ||
         !castControl) {
         ((void (*)(id, SEL, SEL, id, id))OriginalControlSendAction)(
             receiver, selector, action, target, event
@@ -87,11 +87,11 @@ static IMP YTKACEStatusOriginal(id receiver, SEL selector) {
 }
 
 static BOOL YTKACEPrefersStatusHidden(id receiver, SEL selector) {
-    if (YTKACEFeatureEnabled(@"kEnableHideStatusBar")) {
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Navigation.StatusBarHidden")) {
         return YES;
     }
     NSString *name = NSStringFromClass([receiver class]).lowercaseString;
-    if (YTKACEFeatureEnabled(@"kEnableShowStatusBarInOverlay") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Overlay.StatusBarVisible") &&
         ([name containsString:@"player"] || [name containsString:@"watch"])) {
         return NO;
     }

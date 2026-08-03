@@ -31,7 +31,7 @@ static IMP YTKACEStreamingOriginal(id receiver, SEL selector) {
 }
 
 static BOOL YTKACELegacyQuality(id receiver, SEL selector) {
-    if (YTKACEFeatureEnabled(@"kEnableLegacyQSelection")) {
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Playback.LegacyQualityMenu")) {
         return NO;
     }
     return OriginalLegacyQuality != NULL
@@ -68,7 +68,7 @@ static NSInteger YTKACEQualityIndex(void) {
     BOOL onCellular = hasFlags &&
         (flags & kSCNetworkReachabilityFlagsIsWWAN) != 0;
     BOOL onWiFi = !onCellular;
-    NSString *key = onWiFi ? @"wiFiPlaybackIndex" : @"celluarPlaybackIndex";
+    NSString *key = onWiFi ? @"YTKACE.Preference.Playback.WiFiQuality" : @"YTKACE.Preference.Playback.CellularQuality";
     id value = YTKACEPreferenceObject(key);
     NSInteger index = [value respondsToSelector:@selector(integerValue)]
         ? [value integerValue] : 0;
@@ -158,7 +158,7 @@ static void YTKACESetUserSelectableFormats(id receiver,
                                             SEL selector,
                                             NSArray *formats) {
     NSArray *selectedFormats = formats;
-    if (YTKACEFeatureEnabled(@"kEnableLegacyQSelection")) {
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Playback.LegacyQualityMenu")) {
         id redesigned = objc_getAssociatedObject(
             receiver, YTKACERedesignedQualityControllerKey);
         if (redesigned == nil) {
@@ -199,7 +199,7 @@ static void YTKACESetUserSelectableFormats(id receiver,
 }
 
 static void YTKACEQualityHandleTap(id receiver, SEL selector) {
-    if (YTKACEFeatureEnabled(@"kEnableLegacyQSelection")) {
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Playback.LegacyQualityMenu")) {
         id controller = YTKACEValue(receiver, @"_controller");
         id node = YTKACEValue(controller, @"node");
         SEL identifierSelector = NSSelectorFromString(@"accessibilityIdentifier");
@@ -254,7 +254,7 @@ static void YTKACEQualityHandleTap(id receiver, SEL selector) {
 }
 
 static BOOL YTKACEAutoplayValue(id receiver, SEL selector) {
-    if (YTKACEFeatureEnabled(@"kEnableDisableAutoplayVideos")) {
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Playback.AutoplayDisabled")) {
         return NO;
     }
     IMP original = YTKACEStreamingOriginal(receiver, selector);
@@ -267,13 +267,13 @@ static void YTKACEAutoplaySetter(id receiver, SEL selector, BOOL enabled) {
         ((void (*)(id, SEL, BOOL))original)(
             receiver,
             selector,
-            YTKACEFeatureEnabled(@"kEnableDisableAutoplayVideos") ? NO : enabled
+            YTKACEFeatureEnabled(@"YTKACE.Preference.Playback.AutoplayDisabled") ? NO : enabled
         );
     }
 }
 
 static BOOL YTKACECellularQualityValue(id receiver, SEL selector) {
-    if (YTKACEFeatureEnabled(@"kEnablePlayHDVideosOverCellur")) {
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Playback.HDOnCellular")) {
         NSString *name = NSStringFromSelector(selector).lowercaseString;
         BOOL limiter = [name containsString:@"limit"] ||
             [name containsString:@"restrict"] ||

@@ -14,7 +14,7 @@ static IMP OriginalYouTherePrompt;
 static IMP OriginalThrottleInterstitial;
 
 static BOOL YTKACEHidePromos(void) {
-    return YTKACEFeatureEnabled(@"kEnableNoPremiumpopup");
+    return YTKACEFeatureEnabled(@"YTKACE.Preference.Ads.PremiumPromosHidden");
 }
 
 static void YTKACEMealbarPromo(id receiver, SEL selector, id event) {

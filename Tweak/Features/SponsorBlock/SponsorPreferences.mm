@@ -21,11 +21,13 @@ NSArray<NSDictionary<NSString *, NSString *> *> *YTKACESponsorCategoryDefinition
 }
 
 NSString *YTKACESponsorBehaviorKey(NSString *category) {
-    return [@"YTKACESponsorBehavior." stringByAppendingString:category ?: @""];
+    return [@"YTKACE.Preference.SponsorBlock.Behavior."
+        stringByAppendingString:category ?: @""];
 }
 
 NSString *YTKACESponsorColorKey(NSString *category) {
-    return [@"YTKACESponsorColor." stringByAppendingString:category ?: @""];
+    return [@"YTKACE.Preference.SponsorBlock.Color."
+        stringByAppendingString:category ?: @""];
 }
 
 static NSDictionary<NSString *, NSString *> *YTKACESponsorDefinition(NSString *category) {
@@ -41,7 +43,7 @@ NSInteger YTKACESponsorCategoryBehavior(NSString *category) {
         return MAX(0, MIN([stored integerValue], 3));
     }
     if ([category isEqualToString:@"sponsor"]) {
-        id legacy = YTKACEPreferenceObject(@"sbSkipMode");
+        id legacy = YTKACEPreferenceObject(@"YTKACE.Preference.SponsorBlock.Mode");
         return [legacy respondsToSelector:@selector(integerValue)] &&
             [legacy integerValue] == 1 ? 1 : 0;
     }
@@ -80,7 +82,7 @@ UIColor *YTKACESponsorCategoryColor(NSString *category) {
 }
 
 NSInteger YTKACESponsorNotificationMode(void) {
-    id stored = YTKACEPreferenceObject(@"YTKACESponsorNotificationMode");
+    id stored = YTKACEPreferenceObject(@"YTKACE.Preference.SponsorBlock.NotificationMode");
     return [stored respondsToSelector:@selector(integerValue)]
         ? MAX(0, MIN([stored integerValue], 2)) : 0;
 }
@@ -93,9 +95,9 @@ static NSTimeInterval YTKACESponsorDuration(NSString *key) {
 }
 
 NSTimeInterval YTKACESponsorSkipAlertDuration(void) {
-    return YTKACESponsorDuration(@"YTKACESponsorSkipAlertDuration");
+    return YTKACESponsorDuration(@"YTKACE.Preference.SponsorBlock.SkipAlertSeconds");
 }
 
 NSTimeInterval YTKACESponsorUnskipAlertDuration(void) {
-    return YTKACESponsorDuration(@"YTKACESponsorUnskipAlertDuration");
+    return YTKACESponsorDuration(@"YTKACE.Preference.SponsorBlock.UnskipAlertSeconds");
 }

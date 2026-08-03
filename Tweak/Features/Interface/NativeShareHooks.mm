@@ -249,7 +249,7 @@ static void YTKACEPresentNativeShare(NSURL *URL) {
 static void YTKACEShareButtonSendAction(UIControl *receiver, SEL selector,
                                         SEL action, id target, UIEvent *event) {
     NSString *identifier = receiver.accessibilityIdentifier.lowercaseString;
-    if (YTKACEFeatureEnabled(@"kEnableNativeShare") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Sharing.NativeSheet") &&
         [identifier containsString:@"share.button"]) {
         NSString *videoID = YTKACELastVideoID();
         if (videoID.length != 0) {
@@ -267,7 +267,7 @@ static void YTKACEShareButtonSendAction(UIControl *receiver, SEL selector,
 
 static void YTKACEShowShareSheet(id receiver, SEL selector,
                                  id context, id handler) {
-    BOOL enabled = YTKACEFeatureEnabled(@"kEnableNativeShare");
+    BOOL enabled = YTKACEFeatureEnabled(@"YTKACE.Preference.Sharing.NativeSheet");
     BOOL hasOnAppear = YTKACEShareBool(receiver, @"hasOnAppear");
     if (!enabled || !hasOnAppear) {
         if (OriginalShowShareSheet != NULL) {

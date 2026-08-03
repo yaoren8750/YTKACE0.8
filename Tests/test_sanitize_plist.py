@@ -11,19 +11,19 @@ SCRIPT = ROOT / "Tools" / "sanitize_plist.py"
 
 
 class SanitizePlistTests(unittest.TestCase):
-    def test_removes_only_legacy_icons(self):
+    def test_preserves_icons_and_enables_file_access(self):
         value = {
             "CFBundleIcons": {
                 "CFBundleAlternateIcons": {
                     "YTK": {},
-                    "YTKPlusDark": {},
-                    "YTKiller": {},
+                    "ExampleDark": {},
+                    "ExampleLight": {},
                     "YouTubeBlue": {},
                 }
             },
             "CFBundleIcons~ipad": {
                 "CFBundleAlternateIcons": {
-                    "YTKPlus": {},
+                    "ExampleTablet": {},
                     "YouTubeRed": {},
                 }
             },
@@ -38,8 +38,8 @@ class SanitizePlistTests(unittest.TestCase):
 
         phone = result["CFBundleIcons"]["CFBundleAlternateIcons"]
         tablet = result["CFBundleIcons~ipad"]["CFBundleAlternateIcons"]
-        self.assertEqual(list(phone), ["YouTubeBlue"])
-        self.assertEqual(list(tablet), ["YouTubeRed"])
+        self.assertEqual(set(phone), {"YTK", "ExampleDark", "ExampleLight", "YouTubeBlue"})
+        self.assertEqual(set(tablet), {"ExampleTablet", "YouTubeRed"})
         self.assertTrue(result["UIFileSharingEnabled"])
         self.assertTrue(result["LSSupportsOpeningDocumentsInPlace"])
         self.assertIn("audio", result["UIBackgroundModes"])

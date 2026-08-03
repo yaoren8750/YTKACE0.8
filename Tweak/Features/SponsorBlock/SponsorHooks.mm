@@ -65,7 +65,7 @@ static NSString *YTKACEVideoIDFromObject(id object) {
 }
 
 static BOOL YTKACESponsorFeedbackEnabled(void) {
-    return YTKACEFeatureEnabled(@"AudioNotificationOnSkip");
+    return YTKACEFeatureEnabled(@"YTKACE.Preference.SponsorBlock.AudioFeedback");
 }
 
 static NSString *YTKACESponsorCategoryTitle(NSString *category) {

@@ -59,11 +59,16 @@ static NSString *YTKACENativeSettingsSubtitle(NSString *title) {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         subtitles = @{
-            @"Downloads": @"Saved videos, audio and Shorts",
-            @"Player Controls": @"Speed, loop, gestures and overlay buttons",
-            @"SponsorBlock": @"Skip sponsors and swap clickbait with DeArrow",
-            @"Tab Bar": @"Choose and reorder the bottom tabs",
-            @"Gestures": @"Double tap, hold to seek and pinch",
+            @"Downloads & Library": @"Saved video, audio, Shorts, imports and backups",
+            @"Player": @"Download, PiP, loop, speed and progress controls",
+            @"SponsorBlock": @"Segments, alerts, colors and DeArrow",
+            @"Overlay": @"Player buttons, captions and watch-page cleanup",
+            @"Playback": @"Quality menu, autoplay and skip timing",
+            @"Shorts": @"Playback, feed and action buttons",
+            @"Navigation": @"Top buttons, branding and topic chips",
+            @"Tabs": @"Choose and reorder bottom tabs",
+            @"Gestures": @"Brightness, volume, hold and tap to seek",
+            @"Other": @"OLED, startup, sharing, layout and prompts",
             @"itzzace": @"Developer"
         };
     });
@@ -127,24 +132,24 @@ static void YTKACEUpdateNativeSettingsSection(id receiver, SEL selector,
         return;
     }
     NSArray<NSDictionary *> *definitions = @[
-        @{@"title": @"Downloads", @"builder": [^UIViewController *{
+        @{@"title": @"Downloads & Library", @"builder": [^UIViewController *{
             YTKACEDownloadsController *controller = [YTKACEDownloadsController new];
             controller.hidesSettingsButton = YES;
             return controller;
         } copy]},
-        @{@"title": @"Player Controls", @"builder": [^UIViewController *{ return YTKACEMakePlayerControlsController(); } copy]},
+        @{@"title": @"Player", @"builder": [^UIViewController *{ return YTKACEMakePlayerControlsController(); } copy]},
         @{@"title": @"SponsorBlock", @"builder": [^UIViewController *{ return YTKACEMakeSponsorBlockController(); } copy]},
-        @{@"title": @"Tab Bar", @"builder": [^UIViewController *{ return YTKACEMakeTabBarOptionsController(); } copy]},
+        @{@"title": @"Overlay", @"builder": [^UIViewController *{ return YTKACEMakeOverlayOptionsController(); } copy]},
+        @{@"title": @"Playback", @"builder": [^UIViewController *{ return YTKACEMakeStreamingOptionsController(); } copy]},
+        @{@"title": @"Shorts", @"builder": [^UIViewController *{ return YTKACEMakeShortsOptionsController(); } copy]},
+        @{@"title": @"Navigation", @"builder": [^UIViewController *{ return YTKACEMakeNavigationOptionsController(); } copy]},
+        @{@"title": @"Tabs", @"builder": [^UIViewController *{ return YTKACEMakeTabBarOptionsController(); } copy]},
+        @{@"title": @"Gestures", @"builder": [^UIViewController *{ return YTKACEMakeGestureOptionsController(); } copy]},
         @{@"title": @"Wi-Fi Quality", @"builder": [^UIViewController *{ return YTKACEMakeWiFiQualityController(); } copy]},
         @{@"title": @"Cellular Quality", @"builder": [^UIViewController *{ return YTKACEMakeCellularQualityController(); } copy]},
-        @{@"title": @"Gestures", @"builder": [^UIViewController *{ return YTKACEMakeGestureOptionsController(); } copy]},
-        @{@"title": @"Overlay", @"builder": [^UIViewController *{ return YTKACEMakeOverlayOptionsController(); } copy]},
-        @{@"title": @"Streaming", @"builder": [^UIViewController *{ return YTKACEMakeStreamingOptionsController(); } copy]},
-        @{@"title": @"Navigation Bar", @"builder": [^UIViewController *{ return YTKACEMakeNavigationOptionsController(); } copy]},
-        @{@"title": @"Shorts", @"builder": [^UIViewController *{ return YTKACEMakeShortsOptionsController(); } copy]},
-        @{@"title": @"Miscellaneous", @"builder": [^UIViewController *{ return YTKACEMakeMiscOptionsController(); } copy]},
+        @{@"title": @"Other", @"builder": [^UIViewController *{ return YTKACEMakeMiscOptionsController(); } copy]},
         @{@"title": @"itzzace", @"builder": [^UIViewController *{
-            NSURL *URL = [NSURL URLWithString:@"https://github.com/Epic0001/YTKACE"];
+            NSURL *URL = [NSURL URLWithString:@"https://github.com/itzzace/YTKACE"];
             [UIApplication.sharedApplication openURL:URL options:@{}
                                    completionHandler:nil];
             return nil;

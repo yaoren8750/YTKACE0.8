@@ -29,7 +29,7 @@ def fixture(section_offset: int = 0x400) -> bytes:
     struct.pack_into("<I", segment, 64, 1)
     struct.pack_into("<I", segment, 72 + 48, section_offset)
     legacy = dylib_command(
-        "/Library/MobileSubstrate/DynamicLibraries/YTKPlus.dylib",
+        "@rpath/LegacyTweak.dylib",
         0x18 | 0x80000000,
     )
     commands = bytes(segment) + legacy
@@ -56,7 +56,7 @@ class MachOInjectTests(unittest.TestCase):
         rewritten = MACHO.rewrite(
             fixture(),
             "@rpath/YTKACE.dylib",
-            ["YTKPlus.dylib"],
+            ["LegacyTweak.dylib"],
         )
         self.assertEqual(MACHO.list_dylibs(rewritten), [["@rpath/YTKACE.dylib"]])
 
@@ -64,12 +64,12 @@ class MachOInjectTests(unittest.TestCase):
         first = MACHO.rewrite(
             fixture(),
             "@rpath/YTKACE.dylib",
-            ["YTKPlus.dylib"],
+            ["LegacyTweak.dylib"],
         )
         second = MACHO.rewrite(
             first,
             "@rpath/YTKACE.dylib",
-            ["YTKPlus.dylib"],
+            ["LegacyTweak.dylib"],
         )
         self.assertEqual(first, second)
 

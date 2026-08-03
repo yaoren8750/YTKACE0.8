@@ -159,7 +159,7 @@ static NSArray<YTKACESubtitleCue *> *YTKACEReadSubtitles(NSURL *mediaURL) {
     return self;
 }
 
-static NSString * const YTKACEResumeKey = @"YTKACEResumePositions";
+static NSString * const YTKACEResumeKey = @"YTKACE.Preference.Downloads.ResumePositions";
 
 static NSString *YTKACEResumeIdentifier(NSURL *URL) {
     if (URL == nil) return @"";
@@ -899,7 +899,7 @@ static void YTKACEStoreCompleted(NSURL *URL, NSTimeInterval duration,
     rows.distribution = UIStackViewDistributionFillEqually;
     rows.translatesAutoresizingMaskIntoConstraints = NO;
     [card addSubview:rows];
-    [rows addArrangedSubview:[self optionRow:@"gauge.with.dots.needle.67percent"
+    [rows addArrangedSubview:[self optionRow:@"speedometer"
         title:@"Playback Speed" selector:@selector(selectSpeed) detail:&_speedDetail]];
     [rows addArrangedSubview:[self optionRow:@"moon.zzz.fill"
         title:@"Sleep Timer" selector:@selector(selectSleepTimer) detail:&_sleepDetail]];

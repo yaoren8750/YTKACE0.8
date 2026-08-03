@@ -3,7 +3,7 @@
 
 #import <UIKit/UIKit.h>
 
-NSString * const YTKACELanguageKey = @"kYTKACELanguage";
+NSString * const YTKACELanguageKey = @"YTKACE.Preference.Language";
 
 static NSBundle *YTKACEResourceBundle(void) {
     static NSBundle *bundle;

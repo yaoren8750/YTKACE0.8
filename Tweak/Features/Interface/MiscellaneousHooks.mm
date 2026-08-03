@@ -71,12 +71,11 @@ static IMP YTKACEMiscOriginal(id receiver, SEL selector) {
 }
 
 static BOOL YTKACEMiniPlayerEnabled(void) {
-    return YTKACEFeatureEnabled(@"kEnableMiniPlayerAllVideos") ||
-        YTKACEFeatureEnabled(@"kEnableminiPlayerall");
+    return YTKACEFeatureEnabled(@"YTKACE.Preference.Playback.KidsMiniPlayer");
 }
 
 static UIUserInterfaceIdiom YTKACEUserInterfaceIdiom(id receiver, SEL selector) {
-    if (YTKACEFeatureEnabled(@"kEnableiPadOSMode")) {
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.App.iPadLayout")) {
         return UIUserInterfaceIdiomPad;
     }
     return OriginalDeviceIdiom != NULL
@@ -85,7 +84,7 @@ static UIUserInterfaceIdiom YTKACEUserInterfaceIdiom(id receiver, SEL selector) 
 }
 
 static void YTKACEAddInteraction(UIView *receiver, SEL selector, id interaction) {
-    if (YTKACEFeatureEnabled(@"kEnableDisableDragDrop") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.App.DragDropDisabled") &&
         ([interaction isKindOfClass:UIDragInteraction.class] ||
          [interaction isKindOfClass:UIDropInteraction.class])) {
         return;
@@ -96,7 +95,7 @@ static void YTKACEAddInteraction(UIView *receiver, SEL selector, id interaction)
 }
 
 static UISemanticContentAttribute YTKACESemanticContent(id receiver, SEL selector) {
-    if (YTKACEFeatureEnabled(@"kEnableDisableRTL")) {
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.App.RTLDisabled")) {
         return UISemanticContentAttributeForceLeftToRight;
     }
     return OriginalSemanticContent != NULL
@@ -111,7 +110,7 @@ static void YTKACESetSemanticContent(id receiver,
         ((void (*)(id, SEL, UISemanticContentAttribute))OriginalSetSemanticContent)(
             receiver,
             selector,
-            YTKACEFeatureEnabled(@"kEnableDisableRTL")
+            YTKACEFeatureEnabled(@"YTKACE.Preference.App.RTLDisabled")
                 ? UISemanticContentAttributeForceLeftToRight
                 : value
         );
@@ -141,7 +140,7 @@ static BOOL YTKACEMiniPlayerPauseOnlyValue(id receiver, SEL selector) {
 }
 
 static BOOL YTKACEAgeValue(id receiver, SEL selector) {
-    if (YTKACEFeatureEnabled(@"kEnableAgeRestriction")) {
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Content.AgeGateBypass")) {
         NSString *name = NSStringFromSelector(selector).lowercaseString;
         return [name containsString:@"verified"] ||
             [name containsString:@"allowed"];
@@ -154,10 +153,10 @@ static BOOL YTKACECaptionValue(id receiver, SEL selector) {
     NSString *name = NSStringFromSelector(selector).lowercaseString;
     BOOL negative = [name containsString:@"disabled"] ||
         [name containsString:@"hidden"];
-    if (YTKACEFeatureEnabled(@"kEnableDisableCaptions")) {
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Playback.CaptionsDisabled")) {
         return negative;
     }
-    if (YTKACEFeatureEnabled(@"kEnableKeepCaptionOn")) {
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Playback.CaptionsAlwaysOn")) {
         if (!YTKACECaptionRequestReceiver(receiver, selector)) {
             IMP original = YTKACEMiscOriginal(receiver, selector);
             return original != NULL
@@ -182,9 +181,9 @@ static void YTKACECaptionSetter(id receiver, SEL selector, BOOL enabled) {
     BOOL negative = [name containsString:@"disabled"] ||
         [name containsString:@"hidden"];
     BOOL value = enabled;
-    if (YTKACEFeatureEnabled(@"kEnableDisableCaptions")) {
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Playback.CaptionsDisabled")) {
         value = negative;
-    } else if (YTKACEFeatureEnabled(@"kEnableKeepCaptionOn") &&
+    } else if (YTKACEFeatureEnabled(@"YTKACE.Preference.Playback.CaptionsAlwaysOn") &&
                YTKACECaptionRequestReceiver(receiver, selector)) {
         value = !negative;
     }
@@ -204,7 +203,7 @@ static id YTKACEFirstCaptionTrack(id tracks) {
 }
 
 static void YTKACEScheduleCaptionSelection(id track) {
-    if (track == nil || !YTKACEFeatureEnabled(@"kEnableKeepCaptionOn")) {
+    if (track == nil || !YTKACEFeatureEnabled(@"YTKACE.Preference.Playback.CaptionsAlwaysOn")) {
         return;
     }
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
@@ -302,7 +301,7 @@ static void YTKACECaptionSelectedTrackSetter(id receiver,
 }
 
 static id YTKACECaptionTracks(id receiver, SEL selector) {
-    if (YTKACEFeatureEnabled(@"kEnableDisableCaptions")) {
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Playback.CaptionsDisabled")) {
         return @[];
     }
     id tracks = OriginalCaptionTracks != NULL
@@ -312,7 +311,7 @@ static id YTKACECaptionTracks(id receiver, SEL selector) {
 }
 
 static void YTKACEHUDMessage(id receiver, SEL selector, id message) {
-    if (YTKACEFeatureEnabled(@"kEnableHideHudeAlerts")) {
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.App.HUDAlertsHidden")) {
         return;
     }
     NSString *text = nil;

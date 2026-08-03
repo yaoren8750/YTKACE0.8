@@ -1,27 +1,15 @@
-# Clean-room boundary
+# Independent implementation
 
-YTKACE is an independent implementation.
+YTKACE is implemented as an independent iOS tweak. Its runtime, settings, download manager, media players, networking, UI controllers and build tooling are maintained in this repository.
 
-The reference binary and decompilation were used to identify YouTube class
-names, selector names, preference names, and user-visible behavior. No
-decompiled function body, obfuscation, server activation logic, binary object,
-resource bundle, image, audio file, or localization table is included.
+Private YouTube class and selector names are treated as compatibility facts. Implementations are written against observed YouTube behavior and are guarded so missing classes disable only the affected feature.
 
-YTKACE uses its own control flow, data models, networking, settings
-controllers, download manager, Mach-O tooling, and runtime-hook registry.
-Interface icons come from SF Symbols. The Premium logo option asks YouTube's
-own installed resource bundle for YouTube's own Premium logo.
+Release rules:
 
-The following reference behavior is intentionally excluded:
+- Do not include third-party tweak binaries, resources or localization tables.
+- Do not include activation, analytics, telemetry, anti-debugging or updater code.
+- Use system symbols or documented project-owned assets.
+- Record the origin and license of every bundled third-party component.
+- Run the provenance audit before publishing an artifact.
 
-- License and activation checks
-- Installation statistics
-- Analytics and telemetry
-- Automatic updates
-- Anti-debugging
-- Frida detection
-- Reference project links
-- Reference branding and credits
-
-The YTKPlus.bundle directory is research material only and must never be copied
-into a release.
+See [Asset Provenance](ASSET_PROVENANCE.md) and [Third-Party Notices](../THIRD_PARTY_NOTICES.md).

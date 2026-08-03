@@ -8,10 +8,10 @@
 #import <os/lock.h>
 #import <stdatomic.h>
 
-NSString * const YTKACEDeArrowThumbModeKey = @"kYTKACEDeArrowThumbMode";
-NSString * const YTKACEDeArrowTitlesKey = @"kYTKACEDeArrowTitles";
+NSString * const YTKACEDeArrowThumbModeKey = @"YTKACE.Preference.DeArrow.ThumbnailMode";
+NSString * const YTKACEDeArrowTitlesKey = @"YTKACE.Preference.DeArrow.Titles";
 
-static NSString * const YTKACEBrandingStoreKey = @"YTKACEDeArrowBranding";
+static NSString * const YTKACEBrandingStoreKey = @"YTKACE.Preference.DeArrow.Branding";
 
 static const NSUInteger YTKACEStoreLimit = 800;
 static const NSUInteger YTKACEMaxConcurrent = 4;

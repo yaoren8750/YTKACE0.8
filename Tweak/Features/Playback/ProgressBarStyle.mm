@@ -8,10 +8,10 @@
 #import <objc/message.h>
 #import <objc/runtime.h>
 
-static NSString * const YTKACEProgressStyleKey = @"kYTKACEProgressBarStyle";
-static NSString * const YTKACEProgressMainColorKey = @"kYTKACEProgressMainColor";
-static NSString * const YTKACEProgressGradientColorKey = @"kYTKACEProgressGradientColor";
-static NSString * const YTKACEProgressScrubberColorKey = @"kYTKACEProgressScrubberColor";
+static NSString * const YTKACEProgressStyleKey = @"YTKACE.Preference.Progress.Style";
+static NSString * const YTKACEProgressMainColorKey = @"YTKACE.Preference.Progress.MainColor";
+static NSString * const YTKACEProgressGradientColorKey = @"YTKACE.Preference.Progress.HighlightColor";
+static NSString * const YTKACEProgressScrubberColorKey = @"YTKACE.Preference.Progress.ScrubberColor";
 
 static IMP OriginalDecorationViewColor;
 static IMP OriginalDecorationControllerColor;
@@ -67,7 +67,7 @@ static void YTKACEProgressSyncGeneration(void) {
                          queue:NSOperationQueue.mainQueue
                     usingBlock:^(NSNotification *note) {
             NSString *key = note.userInfo[@"key"];
-            if (![key hasPrefix:@"kYTKACEProgress"]) return;
+            if (![key hasPrefix:@"YTKACE.Preference.Progress."]) return;
             YTKACEProgressGeneration++;
             for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
                 if (![scene isKindOfClass:UIWindowScene.class]) continue;

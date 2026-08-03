@@ -112,7 +112,7 @@ static BOOL YTKACESectionIsShortsShelf(id section) {
 }
 
 static NSArray *YTKACEFilteredFeedSections(NSArray *sections) {
-    BOOL hideShorts = YTKACEFeatureEnabled(@"kEnableHideYTShorts");
+    BOOL hideShorts = YTKACEFeatureEnabled(@"YTKACE.Preference.Shorts.FeedHidden");
     if (!hideShorts || ![sections isKindOfClass:NSArray.class]) {
         return sections;
     }
@@ -162,7 +162,7 @@ static BOOL YTKACEContentShouldHide(UIView *view, BOOL *hideSuperview) {
         return YES;
     }
 
-    if (YTKACEFeatureEnabled(@"kEnableHideComments")) {
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Overlay.CommentsHidden")) {
         if ([identifier isEqualToString:@"id_comment_guidelines_text"]) {
             if (hideSuperview != NULL) {
                 *hideSuperview = YES;
@@ -178,11 +178,11 @@ static BOOL YTKACEContentShouldHide(UIView *view, BOOL *hideSuperview) {
             return YES;
         }
     }
-    if (YTKACEFeatureEnabled(@"kEnableHideCommentReview") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Overlay.CommentPreviewsHidden") &&
         [identifier isEqualToString:@"id_ui_comments_entry_point_teaser"]) {
         return YES;
     }
-    if (YTKACEFeatureEnabled(@"kEnableHideCommentGuidlines") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Overlay.CommentGuidelinesHidden") &&
         YTKACEContentContains(token, @[
             @"id_comment_guidelines_text",
             @"id_comment_channel_guidelines_bottom_sheet_container",
@@ -194,57 +194,57 @@ static BOOL YTKACEContentShouldHide(UIView *view, BOOL *hideSuperview) {
         }
         return YES;
     }
-    if (YTKACEFeatureEnabled(@"kEnableNoTopics") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Navigation.TopicsHidden") &&
         YTKACEContentContains(token, @[@"topic_chip", @"feed_filter", @"chip_cloud"])) {
         return YES;
     }
-    if (YTKACEFeatureEnabled(@"kEnableNoSearchedHistory") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Privacy.SearchHistoryDisabled") &&
         YTKACEContentContains(token, @[@"search_history", @"history_suggestion"])) {
         return YES;
     }
-    if (YTKACEFeatureEnabled(@"kEnableNoPaidPromotion") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Overlay.PaidPromotionHidden") &&
         YTKACEContentContains(token, @[@"paid_promotion", @"paidpromotion"])) {
         return YES;
     }
-    if (YTKACEFeatureEnabled(@"kEnableNoPremiumpopup") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Ads.PremiumPromosHidden") &&
         YTKACEContentContains(token, @[@"premium_upsell", @"premium_promo"])) {
         return YES;
     }
-    if (YTKACEFeatureEnabled(@"kEnableNoYTUpdate") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.App.UpdatePromptHidden") &&
         YTKACEContentContains(token, @[@"update_dialog", @"upgrade_dialog"])) {
         return YES;
     }
-    if (YTKACEFeatureEnabled(@"kEnableHideSuggestedVideo") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Overlay.SuggestedVideosHidden") &&
         YTKACEContentContains(token, @[@"suggested_video", @"related_video"])) {
         return YES;
     }
-    if (YTKACEFeatureEnabled(@"kEnableHideRelatedVideos") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Overlay.RelatedVideosHidden") &&
         YTKACEContentContains(token, @[
             @"related_video", @"relatedvideo", @"more_videos", @"watch_next"
         ])) {
         return YES;
     }
-    if (YTKACEFeatureEnabled(@"kEnableDisableContinueWatching") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Overlay.ContinueWatchingDisabled") &&
         YTKACEContentContains(token, @[
             @"continue_watching", @"continuewatching", @"resume_watching"
         ])) {
         return YES;
     }
-    if (YTKACEFeatureEnabled(@"kEnableBlockShortsOverlays") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Shorts.PauseCardHidden") &&
         YTKACEContentContains(token, @[
             @"shorts_pause", @"reel_pause", @"pause_card", @"pausecard",
             @"paused_state_carousel", @"reelpausedstatecarousel"
         ])) {
         return YES;
     }
-    if (YTKACEFeatureEnabled(@"kEnableHideShortsProducts") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Shorts.ProductsHidden") &&
         YTKACEContentContains(token, @[
             @"shorts_product", @"product_sticker", @"shopping_carousel",
             @"shopping_destination", @"tagged_product", @"creator_product"
         ])) {
         return YES;
     }
-    if (YTKACEFeatureEnabled(@"kEnableHideShortsStickerAds") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Shorts.StickerAdsHidden") &&
         YTKACEContentContains(token, @[
             @"brand_link_sticker", @"product_sticker", @"promoted_sticker",
             @"sponsored_sticker", @"shorts_ads_shopping"
@@ -307,7 +307,7 @@ static void YTKACEDisplayViewSetIdentifier(UIView *receiver,
 }
 
 static BOOL YTKACEHideTopics(void) {
-    return YTKACEFeatureEnabled(@"kEnableNoTopics");
+    return YTKACEFeatureEnabled(@"YTKACE.Preference.Navigation.TopicsHidden");
 }
 
 static void YTKACECollapseSubheader(id receiver) {
@@ -349,7 +349,7 @@ static void YTKACEPaidContentLayout(UIView *receiver, SEL selector) {
     if (OriginalPaidContentLayout != NULL) {
         ((void (*)(id, SEL))OriginalPaidContentLayout)(receiver, selector);
     }
-    BOOL hide = YTKACEFeatureEnabled(@"kEnableNoPaidPromotion");
+    BOOL hide = YTKACEFeatureEnabled(@"YTKACE.Preference.Overlay.PaidPromotionHidden");
     NSNumber *baseline = objc_getAssociatedObject(
         receiver, YTKACEContentHiddenAssociation);
     if (hide) {
@@ -378,7 +378,7 @@ static void YTKACEPaidContentDidAppear(UIViewController *receiver,
         ((void (*)(id, SEL, BOOL))OriginalPaidContentDidAppear)(
             receiver, selector, animated);
     }
-    if (!YTKACEFeatureEnabled(@"kEnableNoPaidPromotion")) return;
+    if (!YTKACEFeatureEnabled(@"YTKACE.Preference.Overlay.PaidPromotionHidden")) return;
     receiver.view.hidden = YES;
     receiver.view.userInteractionEnabled = NO;
     for (NSString *name in @[@"hidePaidContent",
@@ -391,14 +391,14 @@ static void YTKACEPaidContentDidAppear(UIViewController *receiver,
 }
 
 static void YTKACEPaidContentPlaybackStarted(id receiver, SEL selector) {
-    if (!YTKACEFeatureEnabled(@"kEnableNoPaidPromotion") &&
+    if (!YTKACEFeatureEnabled(@"YTKACE.Preference.Overlay.PaidPromotionHidden") &&
         OriginalPaidContentPlaybackStarted != NULL) {
         ((void (*)(id, SEL))OriginalPaidContentPlaybackStarted)(receiver, selector);
     }
 }
 
 static void YTKACESetPaidContentPlayerData(id receiver, SEL selector, id data) {
-    if (!YTKACEFeatureEnabled(@"kEnableNoPaidPromotion") &&
+    if (!YTKACEFeatureEnabled(@"YTKACE.Preference.Overlay.PaidPromotionHidden") &&
         OriginalSetPaidContentPlayerData != NULL) {
         ((void (*)(id, SEL, id))OriginalSetPaidContentPlayerData)(
             receiver, selector, data);
@@ -409,24 +409,24 @@ static void YTKACESetPaidContentRenderer(id receiver, SEL selector, id renderer)
     if (OriginalSetPaidContentRenderer != NULL) {
         ((void (*)(id, SEL, id))OriginalSetPaidContentRenderer)(
             receiver, selector,
-            YTKACEFeatureEnabled(@"kEnableNoPaidPromotion") ? nil : renderer);
+            YTKACEFeatureEnabled(@"YTKACE.Preference.Overlay.PaidPromotionHidden") ? nil : renderer);
     }
 }
 
 static BOOL YTKACEHasPaidContentOverlay(id receiver, SEL selector) {
-    if (YTKACEFeatureEnabled(@"kEnableNoPaidPromotion")) return NO;
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Overlay.PaidPromotionHidden")) return NO;
     return OriginalHasPaidContentOverlay != NULL &&
         ((BOOL (*)(id, SEL))OriginalHasPaidContentOverlay)(receiver, selector);
 }
 
 static id YTKACEPaidContentOverlay(id receiver, SEL selector) {
-    if (YTKACEFeatureEnabled(@"kEnableNoPaidPromotion")) return nil;
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Overlay.PaidPromotionHidden")) return nil;
     return OriginalPaidContentOverlay == NULL ? nil :
         ((id (*)(id, SEL))OriginalPaidContentOverlay)(receiver, selector);
 }
 
 static void YTKACEOverlayPaidContentPlayerData(id receiver, SEL selector, id data) {
-    if (!YTKACEFeatureEnabled(@"kEnableNoPaidPromotion") &&
+    if (!YTKACEFeatureEnabled(@"YTKACE.Preference.Overlay.PaidPromotionHidden") &&
         OriginalOverlayPaidContentPlayerData != NULL) {
         ((void (*)(id, SEL, id))OriginalOverlayPaidContentPlayerData)(
             receiver, selector, data);
@@ -434,7 +434,7 @@ static void YTKACEOverlayPaidContentPlayerData(id receiver, SEL selector, id dat
 }
 
 static void YTKACEInlinePaidContentPlayerData(id receiver, SEL selector, id data) {
-    if (!YTKACEFeatureEnabled(@"kEnableNoPaidPromotion") &&
+    if (!YTKACEFeatureEnabled(@"YTKACE.Preference.Overlay.PaidPromotionHidden") &&
         OriginalInlinePaidContentPlayerData != NULL) {
         ((void (*)(id, SEL, id))OriginalInlinePaidContentPlayerData)(
             receiver, selector, data);
@@ -444,7 +444,7 @@ static void YTKACEInlinePaidContentPlayerData(id receiver, SEL selector, id data
 static void YTKACEDidInsertPlayerOverlay(id receiver, SEL selector,
                                          id provider, id overlay) {
     NSString *identifier = YTKACEContentValue(overlay, @"overlayIdentifier");
-    if (YTKACEFeatureEnabled(@"kEnableNoPaidPromotion") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Overlay.PaidPromotionHidden") &&
         [identifier isEqualToString:@"player_overlay_paid_content"]) {
         return;
     }

@@ -73,7 +73,7 @@ static UIViewController *YTKACETopViewController(UIViewController *controller) {
 @end
 
 static UIBarButtonItem *YTKACESettingsBarButton(void) {
-    UIImage *image = [YTKACEAssetImage(@"gear_24pt_3x_Normal", @"gearshape")
+    UIImage *image = [YTKACEGearImage()
         imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
     return [[UIBarButtonItem alloc] initWithImage:image
                                            style:UIBarButtonItemStylePlain
@@ -125,7 +125,7 @@ static void YTKACERightButtonsLayoutSubviews(UIView *receiver, SEL selector) {
     }
 
     UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
-    [button setImage:[YTKACEAssetImage(@"gear_24pt_3x_Normal", @"gearshape")
+    [button setImage:[YTKACEGearImage()
         imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]
              forState:UIControlStateNormal];
     button.accessibilityLabel = @"YTKACE Settings";

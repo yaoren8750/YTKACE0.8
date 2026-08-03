@@ -169,9 +169,12 @@ void YTKACEInstallLoopHooks(void) {
             coordinator,
             @selector(toggleLoop)
         );
+        UIImageSymbolConfiguration *configuration =
+            [UIImageSymbolConfiguration configurationWithPointSize:21.0
+                                                            weight:UIImageSymbolWeightMedium];
         [button setImage:[[YTKACEAssetImage(@"repeat_24pt_3x_Normal", @"repeat")
+            imageByApplyingSymbolConfiguration:configuration]
             imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]
-            imageWithAlignmentRectInsets:UIEdgeInsetsMake(-2.0, -2.0, -2.0, -2.0)]
                   forState:UIControlStateNormal];
         coordinator.button = button;
         button.hidden = !YTKACEFeatureEnabled(YTKACELoopKey);

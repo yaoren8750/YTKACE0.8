@@ -129,7 +129,7 @@ static BOOL YTKACETapHitsOverlayControl(UIView *view, CGPoint point,
 @implementation YTKACETapSeekTarget
 - (void)tap:(UITapGestureRecognizer *)recognizer {
     UIView *view = self.view;
-    if (!YTKACEFeatureEnabled(@"kEnableTapToSeek") || view == nil ||
+    if (!YTKACEFeatureEnabled(@"YTKACE.Preference.Playback.TapToSeek") || view == nil ||
         CGRectGetWidth(view.bounds) <= 1.0) return;
     CGPoint point = [recognizer locationInView:view];
     if (YTKACETapHitsOverlayControl(view, point, NULL)) {
@@ -162,7 +162,7 @@ static BOOL YTKACETapHitsOverlayControl(UIView *view, CGPoint point,
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
         shouldRecognizeSimultaneouslyWithGestureRecognizer:
             (UIGestureRecognizer *)otherGestureRecognizer {
-    return YTKACEFeatureEnabled(@"kEnableTapToSeek");
+    return YTKACEFeatureEnabled(@"YTKACE.Preference.Playback.TapToSeek");
 }
 @end
 
@@ -195,7 +195,7 @@ static IMP YTKACEDoubleTapIMPFromValue(NSValue *value) {
 
 static double YTKACEDoubleTapValue(void) {
     double value = [NSUserDefaults.standardUserDefaults
-        doubleForKey:@"kEnableCustomDoubleTapToSkipChnges"];
+        doubleForKey:@"YTKACE.Preference.Playback.DoubleTapSeconds"];
     return MIN(60.0, MAX(5.0, value > 0.0 ? value : 10.0));
 }
 
@@ -223,7 +223,7 @@ static IMP YTKACEDoubleTapOriginal(id receiver, SEL selector) {
 }
 
 static double YTKACEDoubleTapDoubleNoArg(id receiver, SEL selector) {
-    if (YTKACEFeatureEnabled(@"kEnableCustomDoubleTapToSkipDuration")) {
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Playback.CustomDoubleTap")) {
         return YTKACEDoubleTapValue();
     }
     IMP original = YTKACEDoubleTapOriginal(receiver, selector);
@@ -233,7 +233,7 @@ static double YTKACEDoubleTapDoubleNoArg(id receiver, SEL selector) {
 }
 
 static float YTKACEDoubleTapFloatNoArg(id receiver, SEL selector) {
-    if (YTKACEFeatureEnabled(@"kEnableCustomDoubleTapToSkipDuration")) {
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Playback.CustomDoubleTap")) {
         return (float)YTKACEDoubleTapValue();
     }
     IMP original = YTKACEDoubleTapOriginal(receiver, selector);
@@ -243,7 +243,7 @@ static float YTKACEDoubleTapFloatNoArg(id receiver, SEL selector) {
 }
 
 static NSInteger YTKACEDoubleTapIntegerNoArg(id receiver, SEL selector) {
-    if (YTKACEFeatureEnabled(@"kEnableCustomDoubleTapToSkipDuration")) {
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Playback.CustomDoubleTap")) {
         return (NSInteger)llround(YTKACEDoubleTapValue());
     }
     IMP original = YTKACEDoubleTapOriginal(receiver, selector);
@@ -255,7 +255,7 @@ static NSInteger YTKACEDoubleTapIntegerNoArg(id receiver, SEL selector) {
 static double YTKACEDoubleTapDouble(id receiver,
                                     SEL selector,
                                     id __unsafe_unretained config) {
-    if (YTKACEFeatureEnabled(@"kEnableCustomDoubleTapToSkipDuration")) {
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Playback.CustomDoubleTap")) {
         return YTKACEDoubleTapValue();
     }
     IMP original = YTKACEDoubleTapOriginal(receiver, selector);
@@ -267,7 +267,7 @@ static double YTKACEDoubleTapDouble(id receiver,
 static float YTKACEDoubleTapFloat(id receiver,
                                   SEL selector,
                                   id __unsafe_unretained config) {
-    if (YTKACEFeatureEnabled(@"kEnableCustomDoubleTapToSkipDuration")) {
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Playback.CustomDoubleTap")) {
         return (float)YTKACEDoubleTapValue();
     }
     IMP original = YTKACEDoubleTapOriginal(receiver, selector);
@@ -279,7 +279,7 @@ static float YTKACEDoubleTapFloat(id receiver,
 static NSInteger YTKACEDoubleTapInteger(id receiver,
                                         SEL selector,
                                         id __unsafe_unretained config) {
-    if (YTKACEFeatureEnabled(@"kEnableCustomDoubleTapToSkipDuration")) {
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Playback.CustomDoubleTap")) {
         return (NSInteger)llround(YTKACEDoubleTapValue());
     }
     IMP original = YTKACEDoubleTapOriginal(receiver, selector);
@@ -289,7 +289,7 @@ static NSInteger YTKACEDoubleTapInteger(id receiver,
 }
 
 static BOOL YTKACETapToSeekDisabled(id receiver, SEL selector) {
-    if (YTKACEFeatureEnabled(@"kEnableTapToSeek")) {
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Playback.TapToSeek")) {
         return NO;
     }
     IMP original = YTKACEDoubleTapOriginal(receiver, selector);
@@ -299,7 +299,7 @@ static BOOL YTKACETapToSeekDisabled(id receiver, SEL selector) {
 }
 
 static BOOL YTKACETapToSeekEnabled(id receiver, SEL selector) {
-    if (YTKACEFeatureEnabled(@"kEnableTapToSeek")) {
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Playback.TapToSeek")) {
         return YES;
     }
     IMP original = YTKACEDoubleTapOriginal(receiver, selector);

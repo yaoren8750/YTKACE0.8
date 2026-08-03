@@ -28,3 +28,36 @@ UIImage *YTKACEAssetImage(NSString *name, NSString *fallbackSymbol) {
     }
     return image;
 }
+
+UIImage *YTKACEYouTubeImage(NSArray<NSString *> *names, NSString *fallbackSymbol) {
+    for (NSString *name in names) {
+        UIImage *image = [UIImage imageNamed:name];
+        if (image != nil) return image;
+    }
+    return fallbackSymbol.length == 0 ? nil : [UIImage systemImageNamed:fallbackSymbol];
+}
+
+UIImage *YTKACEGearImage(void) {
+    return YTKACEYouTubeImage(@[
+        @"yt_outline_gear_24pt",
+        @"yt_outline_gear_vd_theme_24",
+        @"yt_outline_experimental_gear_vd_theme_24"
+    ], @"gearshape");
+}
+
+UIImage *YTKACEShortsImage(BOOL selected) {
+    return selected
+        ? YTKACEYouTubeImage(@[
+            @"yt_fill_youtube_shorts_24pt",
+            @"yt_fill_youtube_shorts_vd_theme_24"
+        ], @"play.rectangle.fill")
+        : YTKACEYouTubeImage(@[
+            @"yt_outline_youtube_shorts_24pt",
+            @"yt_outline_youtube_shorts_vd_theme_24"
+        ], @"play.rectangle");
+}
+
+UIImage *YTKACEDownloadTabImage(BOOL selected) {
+    return [UIImage systemImageNamed:selected
+        ? @"arrow.down.square.fill" : @"arrow.down.square"];
+}

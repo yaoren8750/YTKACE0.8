@@ -271,6 +271,7 @@ static UIAlertAction *YTKACEMenuAction(
     <UICollectionViewDataSource, UICollectionViewDelegateFlowLayout,
      UIGestureRecognizerDelegate>
 @property(nonatomic, strong) UIStackView *controlBar;
+@property(nonatomic, strong) UILabel *libraryTitleLabel;
 @property(nonatomic, strong) UISegmentedControl *segmentedControl;
 @property(nonatomic, strong) UICollectionView *collectionView;
 @property(nonatomic, strong) UILabel *emptyLabel;
@@ -321,6 +322,7 @@ static void YTKACEStoreMode(NSString *field, NSInteger segment, NSInteger mode) 
     self.miniTitleLabel.textColor = UIColor.labelColor;
     self.miniSubtitleLabel.textColor = UIColor.secondaryLabelColor;
     self.miniPlayButton.tintColor = UIColor.labelColor;
+    self.libraryTitleLabel.textColor = UIColor.labelColor;
 }
 
 - (void)viewDidLoad {
@@ -332,7 +334,7 @@ static void YTKACEStoreMode(NSString *field, NSInteger segment, NSInteger mode) 
         YTKACELocalized(@"Video"), YTKACELocalized(@"Audio"),
         YTKACELocalized(@"Shorts")
     ]];
-    id storedTab = YTKACEPreferenceObject(@"YTKACEDownloadsTab");
+    id storedTab = YTKACEPreferenceObject(@"YTKACE.Preference.Downloads.SelectedTab");
     NSInteger tab = [storedTab respondsToSelector:@selector(integerValue)]
         ? MAX(0, MIN([storedTab integerValue], 2)) : 0;
     self.segmentedControl.selectedSegmentIndex = tab;
@@ -343,31 +345,36 @@ static void YTKACEStoreMode(NSString *field, NSInteger segment, NSInteger mode) 
 
     UIButton *settingsButton = [UIButton buttonWithType:UIButtonTypeSystem];
     self.libraryButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    self.sortButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    [settingsButton setImage:[[YTKACEAssetImage(@"gear_24pt_3x_Normal", @"gearshape")
+    [settingsButton setImage:[[YTKACEGearImage()
         imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]
         imageWithAlignmentRectInsets:UIEdgeInsetsMake(-1.0, -1.0, -1.0, -1.0)]
                     forState:UIControlStateNormal];
     [self applyLayoutButtonImage];
-    [self applySortButtonImage];
-    for (UIButton *button in @[settingsButton, self.libraryButton, self.sortButton]) {
+    for (UIButton *button in @[settingsButton, self.libraryButton]) {
         button.tintColor = UIColor.labelColor;
         [button.widthAnchor constraintEqualToConstant:36.0].active = YES;
     }
+    settingsButton.accessibilityLabel = YTKACELocalized(@"Settings");
+    self.libraryButton.accessibilityLabel = YTKACELocalized(@"View Options");
     [settingsButton addTarget:self action:@selector(openSettings)
              forControlEvents:UIControlEventTouchUpInside];
-    [self.sortButton addTarget:self action:@selector(toggleSort)
-             forControlEvents:UIControlEventTouchUpInside];
-    [self.libraryButton addTarget:self action:@selector(toggleLayout)
-             forControlEvents:UIControlEventTouchUpInside];
+    [self.libraryButton addTarget:self action:@selector(showLibraryOptions:)
+                  forControlEvents:UIControlEventTouchUpInside];
 
     NSArray *controls = self.hidesSettingsButton
-        ? @[self.segmentedControl, self.libraryButton, self.sortButton]
-        : @[self.segmentedControl, settingsButton, self.libraryButton, self.sortButton];
+        ? @[self.libraryButton]
+        : @[settingsButton, self.libraryButton];
     self.controlBar = [[UIStackView alloc] initWithArrangedSubviews:controls];
     self.controlBar.axis = UILayoutConstraintAxisHorizontal;
-    self.controlBar.spacing = 5.0;
+    self.controlBar.spacing = 4.0;
     self.controlBar.translatesAutoresizingMaskIntoConstraints = NO;
+
+    self.libraryTitleLabel = [UILabel new];
+    self.libraryTitleLabel.text = @"YTKACE";
+    self.libraryTitleLabel.font = [UIFont systemFontOfSize:22.0
+                                                    weight:UIFontWeightBold];
+    self.libraryTitleLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    self.segmentedControl.translatesAutoresizingMaskIntoConstraints = NO;
 
     UICollectionViewFlowLayout *layout = [UICollectionViewFlowLayout new];
     layout.minimumLineSpacing = 0.0;
@@ -386,16 +393,25 @@ static void YTKACEStoreMode(NSString *field, NSInteger segment, NSInteger mode) 
     self.emptyLabel.textAlignment = NSTextAlignmentCenter;
     self.emptyLabel.translatesAutoresizingMaskIntoConstraints = NO;
 
+    [self.view addSubview:self.libraryTitleLabel];
     [self.view addSubview:self.controlBar];
+    [self.view addSubview:self.segmentedControl];
     [self.view addSubview:self.collectionView];
     [self.view addSubview:self.emptyLabel];
     UILayoutGuide *safeArea = self.view.safeAreaLayoutGuide;
     [NSLayoutConstraint activateConstraints:@[
-        [self.controlBar.topAnchor constraintEqualToAnchor:safeArea.topAnchor constant:8.0],
-        [self.controlBar.leadingAnchor constraintEqualToAnchor:safeArea.leadingAnchor constant:14.0],
+        [self.libraryTitleLabel.topAnchor constraintEqualToAnchor:safeArea.topAnchor constant:9.0],
+        [self.libraryTitleLabel.leadingAnchor constraintEqualToAnchor:safeArea.leadingAnchor constant:14.0],
+        [self.libraryTitleLabel.heightAnchor constraintEqualToConstant:34.0],
+        [self.controlBar.centerYAnchor constraintEqualToAnchor:self.libraryTitleLabel.centerYAnchor],
+        [self.controlBar.leadingAnchor constraintGreaterThanOrEqualToAnchor:self.libraryTitleLabel.trailingAnchor constant:12.0],
         [self.controlBar.trailingAnchor constraintEqualToAnchor:safeArea.trailingAnchor constant:-10.0],
-        [self.controlBar.heightAnchor constraintEqualToConstant:34.0],
-        [self.collectionView.topAnchor constraintEqualToAnchor:self.controlBar.bottomAnchor constant:4.0],
+        [self.controlBar.heightAnchor constraintEqualToConstant:36.0],
+        [self.segmentedControl.topAnchor constraintEqualToAnchor:self.libraryTitleLabel.bottomAnchor constant:7.0],
+        [self.segmentedControl.leadingAnchor constraintEqualToAnchor:safeArea.leadingAnchor constant:14.0],
+        [self.segmentedControl.trailingAnchor constraintEqualToAnchor:safeArea.trailingAnchor constant:-14.0],
+        [self.segmentedControl.heightAnchor constraintEqualToConstant:32.0],
+        [self.collectionView.topAnchor constraintEqualToAnchor:self.segmentedControl.bottomAnchor constant:8.0],
         [self.collectionView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         [self.collectionView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
         [self.collectionView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
@@ -650,7 +666,7 @@ static void YTKACEStoreMode(NSString *field, NSInteger segment, NSInteger mode) 
 
 - (void)segmentChanged {
     NSInteger tab = self.segmentedControl.selectedSegmentIndex;
-    YTKACESetPreferenceObject(@"YTKACEDownloadsTab", @(tab));
+    YTKACESetPreferenceObject(@"YTKACE.Preference.Downloads.SelectedTab", @(tab));
     self.layoutMode = YTKACEStoredMode(@"Layout", tab, 3);
     self.sortMode = YTKACEStoredMode(@"Sort", tab, 4);
     [self applyLayoutButtonImage];
@@ -660,15 +676,7 @@ static void YTKACEStoreMode(NSString *field, NSInteger segment, NSInteger mode) 
 }
 
 - (void)applySortButtonImage {
-    NSArray *assets = @[@"sort_down", @"sort_up", @"a-z", @"z-a"];
-    NSArray *symbols = @[@"arrow.down.circle", @"arrow.up.circle",
-                         @"a.circle", @"z.circle"];
-    NSUInteger index = (NSUInteger)MAX(0, MIN(self.sortMode, 3));
-    [self.sortButton setImage:
-        [[YTKACEAssetImage(assets[index], symbols[index])
-            imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]
-            imageWithAlignmentRectInsets:UIEdgeInsetsMake(-1.0, -1.0, -1.0, -1.0)]
-                     forState:UIControlStateNormal];
+    [self updateLibraryMenu];
 }
 
 - (void)toggleSort {
@@ -680,16 +688,170 @@ static void YTKACEStoreMode(NSString *field, NSInteger segment, NSInteger mode) 
 }
 
 - (void)applyLayoutButtonImage {
-    NSArray *assets = @[
-        @"yt_outline_subscriptions_black_24pt",
-        @"ig_icon_edit_list_outline_24_Normal",
-        @"player_multiview_24pt_2x_Normal"
-    ];
-    NSArray *symbols = @[@"play.rectangle", @"list.bullet", @"square.grid.2x2"];
-    UIImage *image = [YTKACEAssetImage(assets[(NSUInteger)self.layoutMode],
-                                      symbols[(NSUInteger)self.layoutMode])
+    UIImage *image = [[UIImage systemImageNamed:@"slider.horizontal.3"]
         imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
     [self.libraryButton setImage:image forState:UIControlStateNormal];
+    [self updateLibraryMenu];
+}
+
+- (BOOL)presentNativeLibrarySheetWithTitle:(NSString *)title
+                                    actions:(NSArray *)actions
+                                 sourceView:(UIView *)sourceView {
+    Class sheetClass = NSClassFromString(@"YTDefaultSheetController");
+    SEL factory = NSSelectorFromString(
+        @"sheetControllerWithMessage:subMessage:delegate:parentResponder:"
+    );
+    if (sheetClass == Nil || ![sheetClass respondsToSelector:factory]) {
+        return NO;
+    }
+    id sheet = ((id (*)(id, SEL, id, id, id, id))objc_msgSend)(
+        sheetClass, factory, @"", title, nil, nil
+    );
+    if (sheet == nil) return NO;
+    @try {
+        id header = [sheet valueForKey:@"_headerView"];
+        SEL divider = NSSelectorFromString(@"showHeaderDivider");
+        if ([header respondsToSelector:divider]) {
+            ((void (*)(id, SEL))objc_msgSend)(header, divider);
+        }
+    } @catch (__unused NSException *exception) {
+    }
+    SEL addAction = NSSelectorFromString(@"addAction:");
+    for (id action in actions) {
+        if (action != NSNull.null && [sheet respondsToSelector:addAction]) {
+            ((void (*)(id, SEL, id))objc_msgSend)(sheet, addAction, action);
+        }
+    }
+    SEL presentFromView = NSSelectorFromString(
+        @"presentFromView:animated:completion:"
+    );
+    SEL presentFromController = NSSelectorFromString(
+        @"presentFromViewController:animated:completion:"
+    );
+    if (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad &&
+        [sheet respondsToSelector:presentFromView]) {
+        ((void (*)(id, SEL, id, BOOL, id))objc_msgSend)(
+            sheet, presentFromView, sourceView, YES, nil
+        );
+        return YES;
+    }
+    if ([sheet respondsToSelector:presentFromController]) {
+        ((void (*)(id, SEL, id, BOOL, id))objc_msgSend)(
+            sheet, presentFromController, self, YES, nil
+        );
+        return YES;
+    }
+    return NO;
+}
+
+- (void)showLibraryOptions:(UIButton *)sender {
+    __weak __typeof__(self) weakSelf = self;
+    NSArray<NSString *> *titles = @[
+        YTKACELocalized(@"Cards"), YTKACELocalized(@"List"),
+        YTKACELocalized(@"Grid"), YTKACELocalized(@"Newest"),
+        YTKACELocalized(@"Oldest"), @"A\u2013Z", @"Z\u2013A"
+    ];
+    NSArray<NSString *> *symbols = @[
+        @"rectangle.grid.1x2", @"list.bullet", @"square.grid.2x2",
+        @"clock.arrow.circlepath", @"clock.arrow.2.circlepath",
+        @"arrow.down", @"arrow.up"
+    ];
+    NSMutableArray *actions = [NSMutableArray array];
+    for (NSInteger index = 0; index < 7; index++) {
+        BOOL selected = index < 3 ? self.layoutMode == index
+                                  : self.sortMode == index - 3;
+        NSString *title = titles[(NSUInteger)index];
+        if (selected) title = [@"\u2713  " stringByAppendingString:title];
+        NSInteger capturedIndex = index;
+        id action = [self nativeActionWithTitle:title asset:@""
+            symbol:symbols[(NSUInteger)index]
+            handler:^(__unused UIAlertAction *alertAction) {
+                __typeof__(self) strongSelf = weakSelf;
+                if (strongSelf == nil) return;
+                if (capturedIndex < 3) {
+                    strongSelf.layoutMode = capturedIndex;
+                    YTKACEStoreMode(@"Layout",
+                        strongSelf.segmentedControl.selectedSegmentIndex,
+                        capturedIndex);
+                    [strongSelf.collectionView.collectionViewLayout invalidateLayout];
+                    [strongSelf.collectionView reloadData];
+                } else {
+                    strongSelf.sortMode = capturedIndex - 3;
+                    YTKACEStoreMode(@"Sort",
+                        strongSelf.segmentedControl.selectedSegmentIndex,
+                        capturedIndex - 3);
+                    [strongSelf reloadFiles];
+                }
+            }];
+        [actions addObject:action ?: NSNull.null];
+    }
+    if ([self presentNativeLibrarySheetWithTitle:YTKACELocalized(@"View Options")
+                                         actions:actions sourceView:sender]) {
+        return;
+    }
+    self.libraryButton.showsMenuAsPrimaryAction = YES;
+}
+
+- (void)updateLibraryMenu {
+    if (self.libraryButton == nil) return;
+    __weak __typeof__(self) weakSelf = self;
+    NSArray<NSString *> *layoutTitles = @[
+        YTKACELocalized(@"Cards"), YTKACELocalized(@"List"),
+        YTKACELocalized(@"Grid")
+    ];
+    NSArray<NSString *> *layoutSymbols = @[
+        @"rectangle.grid.1x2", @"list.bullet", @"square.grid.2x2"
+    ];
+    NSMutableArray<UIMenuElement *> *layoutActions = [NSMutableArray array];
+    for (NSInteger mode = 0; mode < 3; mode++) {
+        UIAction *action = [UIAction actionWithTitle:layoutTitles[(NSUInteger)mode]
+            image:[UIImage systemImageNamed:layoutSymbols[(NSUInteger)mode]]
+            identifier:nil handler:^(__unused UIAction *selected) {
+                __typeof__(self) strongSelf = weakSelf;
+                if (strongSelf == nil) return;
+                strongSelf.layoutMode = mode;
+                YTKACEStoreMode(@"Layout",
+                    strongSelf.segmentedControl.selectedSegmentIndex, mode);
+                [strongSelf updateLibraryMenu];
+                [strongSelf.collectionView.collectionViewLayout invalidateLayout];
+                [strongSelf.collectionView reloadData];
+            }];
+        action.state = self.layoutMode == mode
+            ? UIMenuElementStateOn : UIMenuElementStateOff;
+        [layoutActions addObject:action];
+    }
+
+    NSArray<NSString *> *sortTitles = @[
+        YTKACELocalized(@"Newest"), YTKACELocalized(@"Oldest"),
+        @"A–Z", @"Z–A"
+    ];
+    NSArray<NSString *> *sortSymbols = @[
+        @"arrow.down", @"arrow.up", @"textformat.abc", @"textformat.abc"
+    ];
+    NSMutableArray<UIMenuElement *> *sortActions = [NSMutableArray array];
+    for (NSInteger mode = 0; mode < 4; mode++) {
+        UIAction *action = [UIAction actionWithTitle:sortTitles[(NSUInteger)mode]
+            image:[UIImage systemImageNamed:sortSymbols[(NSUInteger)mode]]
+            identifier:nil handler:^(__unused UIAction *selected) {
+                __typeof__(self) strongSelf = weakSelf;
+                if (strongSelf == nil) return;
+                strongSelf.sortMode = mode;
+                YTKACEStoreMode(@"Sort",
+                    strongSelf.segmentedControl.selectedSegmentIndex, mode);
+                [strongSelf updateLibraryMenu];
+                [strongSelf reloadFiles];
+            }];
+        action.state = self.sortMode == mode
+            ? UIMenuElementStateOn : UIMenuElementStateOff;
+        [sortActions addObject:action];
+    }
+    UIMenu *layoutMenu = [UIMenu menuWithTitle:YTKACELocalized(@"Layout")
+                                      children:layoutActions];
+    UIMenu *sortMenu = [UIMenu menuWithTitle:YTKACELocalized(@"Sort")
+                                    children:sortActions];
+    self.libraryButton.menu = [UIMenu menuWithTitle:@""
+                                           children:@[layoutMenu, sortMenu]];
+    self.libraryButton.showsMenuAsPrimaryAction = NO;
 }
 
 - (void)toggleLayout {

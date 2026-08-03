@@ -65,23 +65,23 @@ static BOOL YTKACEShortsActionHidden(UIView *view) {
         view.accessibilityIdentifier.length != 0 ||
         view.accessibilityLabel.length != 0;
     if (!actionable) return NO;
-    if (YTKACEFeatureEnabled(@"kEnableHideShortsRemix") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Shorts.RemixHidden") &&
         [identifier isEqualToString:@"id.reel_remix_button"]) {
         return YES;
     }
-    if (YTKACEFeatureEnabled(@"kEnableHideShortsAudioTrack") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Shorts.SoundHidden") &&
         [identifier isEqualToString:@"id.reel_pivot_button"]) {
         return YES;
     }
-    if (YTKACEFeatureEnabled(@"kEnableHideShortsShare") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Shorts.ShareHidden") &&
         [identifier isEqualToString:@"id.reel_share_button"]) {
         return YES;
     }
-    if (YTKACEFeatureEnabled(@"kEnableHideShortsComments") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Shorts.CommentsHidden") &&
         [identifier isEqualToString:@"id.reel_comment_button"]) {
         return YES;
     }
-    if (YTKACEFeatureEnabled(@"kEnableHideShortsLike") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Shorts.LikeHidden") &&
         [identifier isEqualToString:@"id.reel_like_button"]) {
         return YES;
     }
@@ -144,15 +144,15 @@ static UIView *YTKACEVisibleShortsAction(UIView *root) {
     NSMutableArray<UIView *> *actions = [NSMutableArray array];
     YTKACECollectShortsActions(root, root, NO, actions);
     NSString *expected = nil;
-    if (!YTKACEFeatureEnabled(@"kEnableHideShortsLike")) {
+    if (!YTKACEFeatureEnabled(@"YTKACE.Preference.Shorts.LikeHidden")) {
         expected = @"id.reel_like_button";
-    } else if (!YTKACEFeatureEnabled(@"kEnableHideShortsComments")) {
+    } else if (!YTKACEFeatureEnabled(@"YTKACE.Preference.Shorts.CommentsHidden")) {
         expected = @"id.reel_comment_button";
-    } else if (!YTKACEFeatureEnabled(@"kEnableHideShortsShare")) {
+    } else if (!YTKACEFeatureEnabled(@"YTKACE.Preference.Shorts.ShareHidden")) {
         expected = @"id.reel_share_button";
-    } else if (!YTKACEFeatureEnabled(@"kEnableHideShortsRemix")) {
+    } else if (!YTKACEFeatureEnabled(@"YTKACE.Preference.Shorts.RemixHidden")) {
         expected = @"id.reel_remix_button";
-    } else if (!YTKACEFeatureEnabled(@"kEnableHideShortsAudioTrack")) {
+    } else if (!YTKACEFeatureEnabled(@"YTKACE.Preference.Shorts.SoundHidden")) {
         expected = @"id.reel_pivot_button";
     }
     if (expected == nil) return nil;
@@ -234,7 +234,7 @@ static void YTKACEPositionShortsDownload(UIView *host,
     NSArray<NSLayoutConstraint *> *constraints = objc_getAssociatedObject(
         download, YTKACEShortsDownloadConstraintsAssociation);
     NSInteger position = [NSUserDefaults.standardUserDefaults
-        integerForKey:@"kShortsDownloadButtonPosition"];
+        integerForKey:@"YTKACE.Preference.Shorts.DownloadPosition"];
     if (position == 0) {
         if (download.translatesAutoresizingMaskIntoConstraints) {
             download.translatesAutoresizingMaskIntoConstraints = NO;
@@ -570,7 +570,7 @@ static void YTKACEConfigureReelView(UIView *receiver, BOOL showDownload) {
                 OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         }
         BOOL railMode = [NSUserDefaults.standardUserDefaults
-            integerForKey:@"kShortsDownloadButtonPosition"] != 0;
+            integerForKey:@"YTKACE.Preference.Shorts.DownloadPosition"] != 0;
         BOOL anchored = [objc_getAssociatedObject(download,
             YTKACEShortsDownloadAnchoredAssociation) boolValue];
         download.hidden = !YTKACEFeatureEnabled(YTKACEDownloadKey) ||
@@ -642,7 +642,7 @@ static void YTKACEShortsControllerLayout(UIViewController *receiver,
 
 static void YTKACEPausedLayout(UIView *receiver, SEL selector) {
     YTKACEInvokeShortsOriginal(receiver, selector);
-    BOOL hidden = YTKACEFeatureEnabled(@"kEnableBlockShortsOverlays");
+    BOOL hidden = YTKACEFeatureEnabled(@"YTKACE.Preference.Shorts.PauseCardHidden");
     YTKACESetShortsHidden(receiver, hidden);
 }
 
@@ -652,10 +652,10 @@ static void YTKACEInteractiveStickerLayout(UIView *receiver, SEL selector) {
         NSStringFromClass(receiver.class).lowercaseString,
         receiver.accessibilityIdentifier.lowercaseString ?: @"",
         receiver.description.lowercaseString ?: @""];
-    BOOL product = YTKACEFeatureEnabled(@"kEnableHideShortsProducts") &&
+    BOOL product = YTKACEFeatureEnabled(@"YTKACE.Preference.Shorts.ProductsHidden") &&
         ([token containsString:@"product"] ||
          [token containsString:@"shopping"]);
-    BOOL stickerAd = YTKACEFeatureEnabled(@"kEnableHideShortsStickerAds") &&
+    BOOL stickerAd = YTKACEFeatureEnabled(@"YTKACE.Preference.Shorts.StickerAdsHidden") &&
         (([token containsString:@"sticker"] &&
           ([token containsString:@"sponsor"] ||
            [token containsString:@"promot"] ||

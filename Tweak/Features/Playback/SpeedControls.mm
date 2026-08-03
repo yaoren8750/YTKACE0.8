@@ -24,17 +24,17 @@ static NSString *YTKACESpeedText(double rate) {
 }
 
 static UIImage *YTKACESpeedButtonImage(BOOL plus) {
-    CGSize size = CGSizeMake(28.0, 28.0);
+    CGSize size = CGSizeMake(22.0, 22.0);
     UIGraphicsBeginImageContextWithOptions(size, NO, 0.0);
     CGContextRef context = UIGraphicsGetCurrentContext();
     CGContextSetStrokeColorWithColor(context, UIColor.whiteColor.CGColor);
-    CGContextSetLineWidth(context, 2.5);
-    CGContextAddEllipseInRect(context, CGRectInset((CGRect){CGPointZero, size}, 2.0, 2.0));
-    CGContextMoveToPoint(context, 8.5, 14.0);
-    CGContextAddLineToPoint(context, 19.5, 14.0);
+    CGContextSetLineWidth(context, 2.0);
+    CGContextAddEllipseInRect(context, CGRectInset((CGRect){CGPointZero, size}, 1.5, 1.5));
+    CGContextMoveToPoint(context, 6.5, 11.0);
+    CGContextAddLineToPoint(context, 15.5, 11.0);
     if (plus) {
-        CGContextMoveToPoint(context, 14.0, 8.5);
-        CGContextAddLineToPoint(context, 14.0, 19.5);
+        CGContextMoveToPoint(context, 11.0, 6.5);
+        CGContextAddLineToPoint(context, 11.0, 15.5);
     }
     CGContextStrokePath(context);
     UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
@@ -135,7 +135,7 @@ static UIImage *YTKACESpeedButtonImage(BOOL plus) {
     }
     self.observedRate = rate;
     [NSUserDefaults.standardUserDefaults setFloat:(float)rate
-                                           forKey:@"YTKSavedPlaybackRate"];
+                                           forKey:@"YTKACE.Preference.Player.SavedRate"];
     [self.valueButton setTitle:YTKACESpeedText(rate)
                       forState:UIControlStateNormal];
 }
@@ -154,7 +154,7 @@ static UIImage *YTKACESpeedButtonImage(BOOL plus) {
         return self.observedRate;
     }
     float saved =
-        [NSUserDefaults.standardUserDefaults floatForKey:@"YTKSavedPlaybackRate"];
+        [NSUserDefaults.standardUserDefaults floatForKey:@"YTKACE.Preference.Player.SavedRate"];
     return isfinite(saved) && saved >= 0.25f && saved <= 5.0f
         ? saved
         : 1.0;
@@ -195,7 +195,7 @@ static UIImage *YTKACESpeedButtonImage(BOOL plus) {
         }
     }
     [NSUserDefaults.standardUserDefaults setFloat:(float)rate
-                                           forKey:@"YTKSavedPlaybackRate"];
+                                           forKey:@"YTKACE.Preference.Player.SavedRate"];
     self.observedRate = rate;
     [self.valueButton setTitle:YTKACESpeedText(rate)
                       forState:UIControlStateNormal];

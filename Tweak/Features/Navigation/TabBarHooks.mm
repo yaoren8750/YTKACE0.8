@@ -157,69 +157,6 @@ static NSInteger YTKACEInteger(id receiver, NSString *selectorName) {
         : 0;
 }
 
-static id YTKACEMakeOrderedCreateItem(id source) {
-    id iconOnly = YTKACEValue(source, @"pivotBarIconOnlyItemRenderer");
-    if (iconOnly == nil) {
-        iconOnly = source;
-    }
-    NSString *pivotIdentifier = YTKACEValue(iconOnly, @"pivotIdentifier");
-    id navigationEndpoint = YTKACEValue(iconOnly, @"navigationEndpoint");
-    id sourceIcon = YTKACEValue(iconOnly, @"icon");
-    NSInteger iconType = YTKACEInteger(sourceIcon, @"iconType");
-    Class rendererClass = NSClassFromString(@"YTIPivotBarRenderer");
-    SEL factory = NSSelectorFromString(@"pivotSupportedRenderersWithBrowseId:title:iconType:");
-    if (rendererClass != Nil && [rendererClass respondsToSelector:factory]) {
-        id converted = ((id (*)(id, SEL, id, id, NSInteger))objc_msgSend)(
-            rendererClass,
-            factory,
-            pivotIdentifier ?: @"FEuploads",
-            @"Create",
-            iconType
-        );
-        id convertedItem = YTKACEValue(converted, @"pivotBarItemRenderer");
-        if (convertedItem != nil) {
-            YTKACESetValue(convertedItem,
-                           @"setPivotIdentifier:",
-                           pivotIdentifier ?: @"FEuploads");
-            if (navigationEndpoint != nil) {
-                YTKACESetValue(convertedItem,
-                               @"setNavigationEndpoint:",
-                               navigationEndpoint);
-            }
-            return converted;
-        }
-    }
-    id itemRenderer = YTKACENew(@"YTIPivotBarItemRenderer");
-    id supportedRenderer = YTKACENew(@"YTIPivotBarSupportedRenderers");
-    Class formattedClass = NSClassFromString(@"YTIFormattedString");
-    SEL formattedSelector = NSSelectorFromString(@"formattedStringWithString:");
-    if (itemRenderer == nil || supportedRenderer == nil ||
-        formattedClass == Nil || ![formattedClass respondsToSelector:formattedSelector]) {
-        return source;
-    }
-    YTKACESetValue(itemRenderer,
-                   @"setPivotIdentifier:",
-                   pivotIdentifier ?: @"FEuploads");
-    YTKACESetValue(itemRenderer, @"setNavigationEndpoint:", navigationEndpoint);
-    id destinationIcon = YTKACEValue(itemRenderer, @"icon");
-    SEL setIconType = NSSelectorFromString(@"setIconType:");
-    if ([destinationIcon respondsToSelector:setIconType]) {
-        ((void (*)(id, SEL, NSInteger))objc_msgSend)(
-            destinationIcon,
-            setIconType,
-            iconType
-        );
-    }
-    id title = ((id (*)(id, SEL, id))objc_msgSend)(
-        formattedClass,
-        formattedSelector,
-        @"Create"
-    );
-    YTKACESetValue(itemRenderer, @"setTitle:", title);
-    YTKACESetValue(supportedRenderer, @"setPivotBarItemRenderer:", itemRenderer);
-    return supportedRenderer;
-}
-
 static NSString *YTKACEBrowseIdentifier(UIViewController *controller) {
     id endpoint = YTKACEValue(controller, @"navigationEndpoint");
     if (endpoint == nil) {
@@ -357,67 +294,67 @@ static NSString *YTKACETabToken(id item) {
 static NSString *YTKACEHideKeyForToken(NSString *token) {
     if ([token containsString:@"uc-9-kytw8zkzndhqj6fgpwq"] ||
         [token containsString:@"music_home"]) {
-        return @"kHideMusic";
+        return @"YTKACE.Preference.Tabs.Hidden.Music";
     }
     if ([token containsString:@"uc4r8dwomoi7cawx8_ljqhig"] ||
         [token containsString:@"trending_live"]) {
-        return @"kHideLive";
+        return @"YTKACE.Preference.Tabs.Hidden.Live";
     }
     if ([token containsString:@"ucopncn46ubxvtpkmrmu4abg"] ||
         [token containsString:@"gaming"]) {
-        return @"kHideGaming";
+        return @"YTKACE.Preference.Tabs.Hidden.Gaming";
     }
     if ([token containsString:@"ucyfdidrxb8qhf0nx7iooyw"] ||
         [token containsString:@"news"]) {
-        return @"kHideNews";
+        return @"YTKACE.Preference.Tabs.Hidden.News";
     }
     if ([token containsString:@"ucegdi0xixxz-qjofpf4jskw"] ||
         [token containsString:@"sports"]) {
-        return @"kHideSports";
+        return @"YTKACE.Preference.Tabs.Hidden.Sports";
     }
     if ([token containsString:@"uctfrv9o2ahqozjjynzrv-xg"] ||
         [token containsString:@"learning"]) {
-        return @"kHideLearning";
+        return @"YTKACE.Preference.Tabs.Hidden.Learning";
     }
     if ([token containsString:@"ucrpq4p1ql_hg8rkxikm1moq"] ||
         [token containsString:@"fashion"]) {
-        return @"kHideFashion";
+        return @"YTKACE.Preference.Tabs.Hidden.Fashion";
     }
     if ([token containsString:@"feplaylist_aggregation"] ||
         [token containsString:@"playlist_aggregation"]) {
-        return @"kHidePlaylists";
+        return @"YTKACE.Preference.Tabs.Hidden.Playlists";
     }
     if ([token containsString:@"fehistory"] ||
         [token isEqualToString:@"history"]) {
-        return @"kHideHistory";
+        return @"YTKACE.Preference.Tabs.Hidden.History";
     }
     if ([token containsString:@"fenotifications_inbox"] ||
         [token containsString:@"notifications_inbox"]) {
-        return @"kHideNotifs";
+        return @"YTKACE.Preference.Tabs.Hidden.Notifs";
     }
     if ([token isEqualToString:@"vlwl"] ||
         [token containsString:@"watch_later"]) {
-        return @"kHideWatchLater";
+        return @"YTKACE.Preference.Tabs.Hidden.WatchLater";
     }
     if ([token containsString:@"short"]) {
-        return @"kHideShorts";
+        return @"YTKACE.Preference.Tabs.Hidden.Shorts";
     }
     if ([token containsString:@"subscription"]) {
-        return @"kHideSubscriptions";
+        return @"YTKACE.Preference.Tabs.Hidden.Subscriptions";
     }
     if ([token containsString:@"library"] ||
         [token containsString:@"you_tab"] ||
         [token isEqualToString:@"you"]) {
-        return @"kHideLibrary";
+        return @"YTKACE.Preference.Tabs.Hidden.Library";
     }
     if ([token containsString:@"create"] ||
         [token containsString:@"upload"] ||
         [token containsString:@"plus"]) {
-        return @"kHideCreate";
+        return @"YTKACE.Preference.Tabs.Hidden.Create";
     }
     if ([token containsString:@"home"] ||
         [token containsString:@"what_to_watch"]) {
-        return @"kHideHome";
+        return @"YTKACE.Preference.Tabs.Hidden.Home";
     }
     return nil;
 }
@@ -530,7 +467,7 @@ static NSInteger YTKACETabOrderIndex(NSString *token, NSArray *order) {
 
 static void YTKACEApplyTabName(id item, NSString *token) {
     NSDictionary *names =
-        [NSUserDefaults.standardUserDefaults dictionaryForKey:@"YTKACETabNames"];
+        [NSUserDefaults.standardUserDefaults dictionaryForKey:@"YTKACE.Preference.Tabs.Names"];
     NSString *replacement = names[token] ?: names[YTKACECanonicalTabToken(token)];
     if (![replacement isKindOfClass:NSString.class] || replacement.length == 0) {
         return;
@@ -579,7 +516,7 @@ static void YTKACESetPivotRenderer(id receiver, SEL selector, id renderer) {
                     BOOL duplicate = hasDownloadTab;
                     hasDownloadTab = YES;
                     if (!duplicate && YTKACEMasterEnabled() &&
-                        ![NSUserDefaults.standardUserDefaults boolForKey:@"kHideYTKACETab"]) {
+                        ![NSUserDefaults.standardUserDefaults boolForKey:@"YTKACE.Preference.Tabs.Hidden.YTKACETab"]) {
                         [filtered addObject:candidate];
                     }
                     continue;
@@ -591,8 +528,8 @@ static void YTKACESetPivotRenderer(id receiver, SEL selector, id renderer) {
                 }
                 if (YTKACEMasterEnabled() &&
                     [YTKACECanonicalTabToken(token) isEqualToString:@"create"]) {
-                    candidate = YTKACEMakeOrderedCreateItem(candidate);
-                    token = @"create";
+                    [filtered addObject:candidate];
+                    continue;
                 }
                 if (YTKACEMasterEnabled()) {
                     YTKACEApplyTabName(candidate, token);
@@ -602,34 +539,34 @@ static void YTKACESetPivotRenderer(id receiver, SEL selector, id renderer) {
 
             NSArray<NSDictionary *> *extraTabs = @[
                 @{@"token": @"music", @"id": @"UC-9-kyTW8ZkZNDHQJ6FgpwQ",
-                  @"title": @"Music", @"key": @"kHideMusic", @"icon": @1001},
+                  @"title": @"Music", @"key": @"YTKACE.Preference.Tabs.Hidden.Music", @"icon": @1001},
                 @{@"token": @"live", @"id": @"UC4R8DWoMoI7CAwX8_LjQHig",
-                  @"title": @"Live", @"key": @"kHideLive", @"icon": @1002},
+                  @"title": @"Live", @"key": @"YTKACE.Preference.Tabs.Hidden.Live", @"icon": @1002},
                 @{@"token": @"gaming", @"id": @"UCOpNcN46UbXVtpKMrmU4Abg",
-                  @"title": @"Gaming", @"key": @"kHideGaming", @"icon": @1003},
+                  @"title": @"Gaming", @"key": @"YTKACE.Preference.Tabs.Hidden.Gaming", @"icon": @1003},
                 @{@"token": @"news", @"id": @"UCYfdidRxbB8Qhf0Nx7ioOYw",
-                  @"title": @"News", @"key": @"kHideNews", @"icon": @1004},
+                  @"title": @"News", @"key": @"YTKACE.Preference.Tabs.Hidden.News", @"icon": @1004},
                 @{@"token": @"sports", @"id": @"UCEgdi0XIXXZ-qJOFPf4JSKw",
-                  @"title": @"Sports", @"key": @"kHideSports", @"icon": @1005},
+                  @"title": @"Sports", @"key": @"YTKACE.Preference.Tabs.Hidden.Sports", @"icon": @1005},
                 @{@"token": @"learning", @"id": @"UCtFRv9O2AHqOZjjynzrv-xg",
-                  @"title": @"Learning", @"key": @"kHideLearning", @"icon": @1006},
+                  @"title": @"Learning", @"key": @"YTKACE.Preference.Tabs.Hidden.Learning", @"icon": @1006},
                 @{@"token": @"fashion", @"id": @"UCrpQ4p1Ql_hG8rKXIKM1MOQ",
-                  @"title": @"Fashion", @"key": @"kHideFashion", @"icon": @1007},
+                  @"title": @"Fashion", @"key": @"YTKACE.Preference.Tabs.Hidden.Fashion", @"icon": @1007},
                 @{@"token": @"playlists", @"id": @"FEplaylist_aggregation",
-                  @"title": @"Playlists", @"key": @"kHidePlaylists", @"icon": @1008},
+                  @"title": @"Playlists", @"key": @"YTKACE.Preference.Tabs.Hidden.Playlists", @"icon": @1008},
                 @{@"token": @"history", @"id": @"FEhistory",
-                  @"title": @"History", @"key": @"kHideHistory", @"icon": @1009},
+                  @"title": @"History", @"key": @"YTKACE.Preference.Tabs.Hidden.History", @"icon": @1009},
                 @{@"token": @"notifications", @"id": @"FEnotifications_inbox",
-                  @"title": @"Notifs", @"key": @"kHideNotifs", @"icon": @1010},
+                  @"title": @"Notifs", @"key": @"YTKACE.Preference.Tabs.Hidden.Notifs", @"icon": @1010},
                 @{@"token": @"watchlater", @"id": @"VLWL",
-                  @"title": @"WLater", @"key": @"kHideWatchLater", @"icon": @1011}
+                  @"title": @"WLater", @"key": @"YTKACE.Preference.Tabs.Hidden.WatchLater", @"icon": @1011}
             ];
             NSMutableSet<NSString *> *present = [NSMutableSet set];
             for (id item in filtered) {
                 [present addObject:YTKACECanonicalTabToken(YTKACETabToken(item))];
             }
             NSDictionary *customNames =
-                [NSUserDefaults.standardUserDefaults dictionaryForKey:@"YTKACETabNames"];
+                [NSUserDefaults.standardUserDefaults dictionaryForKey:@"YTKACE.Preference.Tabs.Names"];
             for (NSDictionary *entry in extraTabs) {
                 NSString *token = entry[@"token"];
                 if ([NSUserDefaults.standardUserDefaults boolForKey:entry[@"key"]] ||
@@ -647,7 +584,7 @@ static void YTKACESetPivotRenderer(id receiver, SEL selector, id renderer) {
             }
 
             if (YTKACEMasterEnabled() && !hasDownloadTab &&
-                ![NSUserDefaults.standardUserDefaults boolForKey:@"kHideYTKACETab"]) {
+                ![NSUserDefaults.standardUserDefaults boolForKey:@"YTKACE.Preference.Tabs.Hidden.YTKACETab"]) {
                 id downloadItem = YTKACEMakePivotItem();
                 if (downloadItem != nil) {
                     [filtered addObject:downloadItem];
@@ -655,7 +592,7 @@ static void YTKACESetPivotRenderer(id receiver, SEL selector, id renderer) {
             }
 
             NSArray *order =
-                [NSUserDefaults.standardUserDefaults arrayForKey:@"kTabOrder"];
+                [NSUserDefaults.standardUserDefaults arrayForKey:@"YTKACE.Preference.Tabs.Order"];
             if (YTKACEMasterEnabled() && order.count != 0) {
                 [filtered sortUsingComparator:^NSComparisonResult(id left, id right) {
                     NSInteger leftIndex =
@@ -718,7 +655,7 @@ static UIView *YTKACEPivotItemAncestor(UIView *view) {
 static void YTKACEPivotLabelSetHidden(UILabel *receiver,
                                       SEL selector,
                                       BOOL hidden) {
-    if (YTKACEFeatureEnabled(@"kHideTabLabels") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Tabs.LabelsHidden") &&
         YTKACEInsidePivotItem(receiver)) {
         hidden = YES;
     }
@@ -732,7 +669,7 @@ static void YTKACEPivotLabelSetHidden(UILabel *receiver,
 static void YTKACEPivotLabelSetAlpha(UILabel *receiver,
                                      SEL selector,
                                      CGFloat alpha) {
-    if (YTKACEFeatureEnabled(@"kHideTabLabels") &&
+    if (YTKACEFeatureEnabled(@"YTKACE.Preference.Tabs.LabelsHidden") &&
         YTKACEInsidePivotItem(receiver)) {
         alpha = 0.0;
     }
@@ -934,7 +871,7 @@ static void YTKACEApplyDownloadIcon(UIView *view) {
     ) boolValue];
     BOOL definiteOther = (token.length != 0 && !exactIdentifier) ||
         (text.length != 0 && !exactLabel);
-    BOOL hideLabel = YTKACEFeatureEnabled(@"kHideTabLabels");
+    BOOL hideLabel = YTKACEFeatureEnabled(@"YTKACE.Preference.Tabs.LabelsHidden");
     if (definiteOther) {
         YTKACERestorePivotItem(view, nativeLabel, hideLabel);
         return;
@@ -980,11 +917,7 @@ static void YTKACEApplyDownloadIcon(UIView *view) {
     selected = selected ||
         ((view.accessibilityTraits & UIAccessibilityTraitSelected) != 0) ||
         YTKACEDownloadsAreVisible();
-    UIImage *image = selected
-        ? YTKACEAssetImage(@"dwn_library_fill_24_pt_3x_Normal",
-                           @"arrow.down.square.fill")
-        : YTKACEAssetImage(@"dwn_library_outline_24_pt_3x_Normal",
-                           @"arrow.down.square");
+    UIImage *image = YTKACEDownloadTabImage(selected);
     UIImageView *imageView = (UIImageView *)[view viewWithTag:0x59414345];
     if (imageView == nil) {
         imageView = [[UIImageView alloc] initWithFrame:CGRectZero];
@@ -1077,6 +1010,35 @@ static void YTKACEApplyExtraTabIcon(UIView *view) {
     NSString *token = YTKACECanonicalTabToken(YTKACETabToken(view));
     NSDictionary *config = YTKACEExtraTabIcon(token);
     if (config == nil) {
+        UILabel *nativeLabel = YTKACEFindNativeLabel(view);
+        NSString *hint = [[NSString stringWithFormat:@"%@ %@ %@ %@",
+            nativeLabel.text ?: @"", view.accessibilityLabel ?: @"",
+            view.accessibilityIdentifier ?: @"", view.description ?: @""] lowercaseString];
+        NSDictionary *aliases = @{
+            @"music": @[@"music"],
+            @"live": @[@"live"],
+            @"gaming": @[@"gaming"],
+            @"news": @[@"news"],
+            @"sports": @[@"sports"],
+            @"learning": @[@"learning"],
+            @"fashion": @[@"fashion"],
+            @"playlists": @[@"playlists", @"playlist"],
+            @"history": @[@"history"],
+            @"notifications": @[@"notifs", @"notifications"],
+            @"watchlater": @[@"wlater", @"watch later"]
+        };
+        for (NSString *candidate in aliases) {
+            for (NSString *alias in aliases[candidate]) {
+                if ([hint containsString:alias]) {
+                    token = candidate;
+                    config = YTKACEExtraTabIcon(token);
+                    break;
+                }
+            }
+            if (config != nil) break;
+        }
+    }
+    if (config == nil) {
         [[view viewWithTag:YTKACEExtraIconTag] removeFromSuperview];
         [[view viewWithTag:YTKACEExtraLabelTag] removeFromSuperview];
         return;
@@ -1104,7 +1066,7 @@ static void YTKACEApplyExtraTabIcon(UIView *view) {
     icon.tintColor = YTKACETabForegroundColor(view);
     icon.hidden = NO;
     CGFloat size = 24.0;
-    BOOL hideLabel = YTKACEFeatureEnabled(@"kHideTabLabels");
+    BOOL hideLabel = YTKACEFeatureEnabled(@"YTKACE.Preference.Tabs.LabelsHidden");
     icon.frame = CGRectMake(
         (CGRectGetWidth(view.bounds) - size) * 0.5,
         hideLabel ? (CGRectGetHeight(view.bounds) - size) * 0.5 : 4.0,
@@ -1142,7 +1104,7 @@ static void YTKACEApplyExtraTabIcon(UIView *view) {
 }
 
 static void YTKACEApplyPivotItemPresentation(UIView *view) {
-    BOOL hideLabels = YTKACEFeatureEnabled(@"kHideTabLabels");
+    BOOL hideLabels = YTKACEFeatureEnabled(@"YTKACE.Preference.Tabs.LabelsHidden");
     YTKACESetLabelsHidden(view, hideLabels);
     YTKACEApplyDownloadIcon(view);
     YTKACEApplyExtraTabIcon(view);
@@ -1153,7 +1115,7 @@ static void YTKACEPivotButtonLayout(UIView *receiver, SEL selector) {
     if (OriginalPivotButtonLayout != NULL) {
         ((void (*)(id, SEL))OriginalPivotButtonLayout)(receiver, selector);
     }
-    if (!YTKACEFeatureEnabled(@"kHideTabLabels")) return;
+    if (!YTKACEFeatureEnabled(@"YTKACE.Preference.Tabs.LabelsHidden")) return;
     UIView *item = YTKACEPivotItemAncestor(receiver);
     if (item == nil || CGRectIsEmpty(item.bounds)) return;
     YTKACESetLabelsHidden(receiver, YES);
@@ -1182,7 +1144,7 @@ static BOOL YTKACEContainsCreateText(NSString *value) {
 }
 
 static void YTKACEHideCreateViews(UIView *view) {
-    BOOL hideCreate = [NSUserDefaults.standardUserDefaults boolForKey:@"kHideCreate"];
+    BOOL hideCreate = [NSUserDefaults.standardUserDefaults boolForKey:@"YTKACE.Preference.Tabs.Hidden.Create"];
     for (UIView *subview in view.subviews) {
         NSString *label = subview.accessibilityLabel;
         NSString *identifier = subview.accessibilityIdentifier;
@@ -1204,7 +1166,7 @@ static void YTKACEPivotBarLayout(UIView *receiver, SEL selector) {
     }
     YTKACEHideCreateViews(receiver);
     NSInteger startup = [NSUserDefaults.standardUserDefaults
-        integerForKey:@"kEnabledStartupPage"];
+        integerForKey:@"YTKACE.Preference.Tabs.Startup"];
     SEL select = NSSelectorFromString(@"selectItemWithPivotIdentifier:");
     if (!YTKACEStartupApplied && startup > 0 && startup < 5 &&
         [receiver respondsToSelector:select]) {

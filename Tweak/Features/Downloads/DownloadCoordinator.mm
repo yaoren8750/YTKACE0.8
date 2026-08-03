@@ -294,15 +294,15 @@ static void YTKACESetShortsOverlayFullscreen(UIView *overlay,
         @"arrow.up.left.and.arrow.down.right": @"ic_fullscreen_3x_Normal",
         @"arrow.down.right.and.arrow.up.left": @"ic_fullscreen_exit_3x_Normal",
         @"ytkace.system": @"ig_icon_play_outline_24_Normal",
-        @"ytkace.infuse": @"infuse_pro",
-        @"ytkace.vlc": @"VLC_icon"
+        @"ytkace.infuse": @"play.tv",
+        @"ytkace.vlc": @"play.circle"
     };
     UIImage *image = YTKACEAssetImage(assets[symbol] ?: @"", symbol);
     if (image != nil) {
-        if ([symbol isEqualToString:@"ytkace.infuse"] ||
-            [symbol isEqualToString:@"ytkace.vlc"]) {
-            return [image imageWithRenderingMode:UIImageRenderingModeAlwaysOriginal];
-        }
+        if ([symbol isEqualToString:@"ytkace.infuse"])
+            return [[UIImage systemImageNamed:@"play.tv"] imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+        if ([symbol isEqualToString:@"ytkace.vlc"])
+            return [[UIImage systemImageNamed:@"play.circle"] imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
         return [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
     }
     UIImageSymbolConfiguration *configuration =

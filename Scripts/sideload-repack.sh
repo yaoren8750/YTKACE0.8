@@ -39,9 +39,6 @@ PY
 )"
 MAIN="$APP/$EXECUTABLE"
 
-rm -f "$APP/Frameworks/YTKPlus.dylib"
-rm -rf "$APP/Frameworks/CydiaSubstrate.framework"
-rm -rf "$APP/YTKPlus.bundle"
 rm -rf "$APP/YTKACE.bundle"
 rm -rf "$APP/Extensions/AppMigrationExtension.appex"
 rm -rf "$APP/_CodeSignature"
@@ -49,8 +46,6 @@ find "$APP" -maxdepth 1 -type f \( -name 'YTK@*' -o -name 'YTK-*' \) -delete
 python3 "$ROOT/Tools/sanitize_plist.py" "$APP/Info.plist"
 
 python3 "$ROOT/Tools/macho_inject.py" "$MAIN" \
-  --remove-load YTKPlus.dylib \
-  --remove-load CydiaSubstrate \
   --add-load '@rpath/YTKACE.dylib'
 
 mkdir -p "$APP/Frameworks"

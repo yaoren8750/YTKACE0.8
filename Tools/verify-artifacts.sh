@@ -24,7 +24,6 @@ fi
 
 if command -v otool >/dev/null 2>&1; then
   DEPS="$(otool -L "$DYLIB")"
-  [[ "$DEPS" != *YTKPlus* ]]
   [[ "$DEPS" != *CydiaSubstrate* ]]
   [[ "$DEPS" != *MobileSubstrate* ]]
 fi
@@ -36,9 +35,7 @@ if [[ $# -eq 2 ]]; then
   unzip -q "$IPA" -d "$WORK"
   APP="$(find "$WORK/Payload" -mindepth 1 -maxdepth 1 -type d -name '*.app' -print -quit)"
   test -n "$APP"
-  test ! -e "$APP/Frameworks/YTKPlus.dylib"
   test ! -e "$APP/Frameworks/CydiaSubstrate.framework"
-  test ! -e "$APP/YTKPlus.bundle"
   test -f "$APP/Frameworks/YTKACE.dylib"
 
   EXECUTABLE="$(
@@ -51,7 +48,6 @@ PY
   )"
   LOADS="$(python3 "$ROOT/Tools/macho_inject.py" "$APP/$EXECUTABLE" --list)"
   [[ "$LOADS" == *'@rpath/YTKACE.dylib'* ]]
-  [[ "$LOADS" != *YTKPlus* ]]
 fi
 
 echo "verified"

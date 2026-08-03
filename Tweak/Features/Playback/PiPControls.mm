@@ -392,9 +392,12 @@ void YTKACEInstallPiPHooks(void) {
             YTKACEPiPCoordinator.sharedCoordinator,
             @selector(togglePiP)
         );
+        UIImageSymbolConfiguration *configuration =
+            [UIImageSymbolConfiguration configurationWithPointSize:21.0
+                                                            weight:UIImageSymbolWeightMedium];
         [button setImage:[[YTKACEAssetImage(@"picture_in_picture_24pt_3x_Normal", @"pip")
+            imageByApplyingSymbolConfiguration:configuration]
             imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]
-            imageWithAlignmentRectInsets:UIEdgeInsetsMake(-2.0, -2.0, -2.0, -2.0)]
                   forState:UIControlStateNormal];
         button.hidden = !YTKACEFeatureEnabled(YTKACEPiPKey);
     });

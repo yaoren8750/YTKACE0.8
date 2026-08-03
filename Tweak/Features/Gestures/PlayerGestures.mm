@@ -182,10 +182,10 @@ shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)other 
             return NO;
         }
         NSString *key = [self isVolumePan:gestureRecognizer]
-            ? @"kVolumeSide" : @"kBrightnessSide";
+            ? @"YTKACE.Preference.Gestures.VolumeSide" : @"YTKACE.Preference.Gestures.BrightnessSide";
         id value = YTKACEPreferenceObject(key);
         NSInteger side = value == nil
-            ? ([key isEqualToString:@"kVolumeSide"] ? 0 : 1)
+            ? ([key isEqualToString:@"YTKACE.Preference.Gestures.VolumeSide"] ? 0 : 1)
             : [value integerValue];
         CGFloat edge = CGRectGetWidth(view.bounds) * 0.15;
         BOOL inEdge = side == 0
@@ -196,7 +196,7 @@ shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)other 
     if (![gestureRecognizer isKindOfClass:UILongPressGestureRecognizer.class]) {
         return YES;
     }
-    if (!YTKACEFeatureEnabled(@"kEnableHoldToSeek")) {
+    if (!YTKACEFeatureEnabled(@"YTKACE.Preference.Gestures.HoldToSeek")) {
         return NO;
     }
     UIView *view = gestureRecognizer.view;
@@ -287,12 +287,8 @@ shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)other 
 }
 
 - (double)seekStep {
-    NSDictionary *legacy =
-        [NSUserDefaults.standardUserDefaults dictionaryForKey:@"YTKPlus"];
-    id nested = legacy[@"kSeekDuration"];
-    double value = [nested respondsToSelector:@selector(doubleValue)]
-        ? [nested doubleValue]
-        : [NSUserDefaults.standardUserDefaults doubleForKey:@"kSeekDuration"];
+    double value = [NSUserDefaults.standardUserDefaults
+        doubleForKey:@"YTKACE.Preference.Gestures.HoldSeekSeconds"];
     return MIN(60.0, MAX(1.0, value > 0.0 ? value : 10.0));
 }
 

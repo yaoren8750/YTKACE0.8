@@ -7,11 +7,12 @@
 #import <objc/message.h>
 #import <objc/runtime.h>
 #import <stdlib.h>
+#import <string.h>
 #import "../Downloads/DownloadLog.h"
 
-static NSString * const YTKACEFixPlaybackKey = @"kEnablefixvideoplayback";
-static NSString * const kNeedsRefetch = @"YTKPlusNeedsRefetch";
-static NSString * const kScrubBegan  = @"YTKPlusScrubBegan";
+static NSString * const YTKACEFixPlaybackKey = @"YTKACE.Preference.Playback.Recovery";
+static NSString * const kNeedsRefetch = @"YTKACEPlaybackNeedsRefetch";
+static NSString * const kScrubBegan  = @"YTKACEPlaybackScrubBegan";
 
 static BOOL FixOn(void) {
     return YTKACEFeatureEnabled(YTKACEFixPlaybackKey);
@@ -67,11 +68,37 @@ static void NoteFailure(NSString *why) {
 
 static long gRefetchStreak = 0;
 static NSTimeInterval gBackoffUntil = 0.0;
-static NSTimeInterval gBurstStart = 0.0;
-static long gBurstCount = 0;
+static const NSTimeInterval kItemFailureWindow = 10.0;
+static NSTimeInterval gItemFailureTimes[8] = {0};
+static NSUInteger gItemFailureCount = 0;
 static long gTotalItemFails = 0;
 static long gRawMediaState = -1;
 static BOOL gReloadPending = NO;
+static NSUInteger gPlaybackGeneration = 0;
+
+static void ClearRecentItemFailures(void) {
+    memset(gItemFailureTimes, 0, sizeof(gItemFailureTimes));
+    gItemFailureCount = 0;
+}
+
+static NSUInteger RecordRecentItemFailure(NSTimeInterval failedAt) {
+    NSTimeInterval kept[8] = {0};
+    NSUInteger keptCount = 0;
+    for (NSUInteger i = 0; i < gItemFailureCount; i++) {
+        NSTimeInterval timestamp = gItemFailureTimes[i];
+        if (timestamp > 0.0 && failedAt - timestamp <= kItemFailureWindow) {
+            kept[keptCount++] = timestamp;
+        }
+    }
+    if (keptCount == 8) {
+        memmove(kept, kept + 1, 7 * sizeof(NSTimeInterval));
+        keptCount = 7;
+    }
+    kept[keptCount++] = failedAt;
+    memcpy(gItemFailureTimes, kept, sizeof(gItemFailureTimes));
+    gItemFailureCount = keptCount;
+    return keptCount;
+}
 
 static void RequestRefetch(NSString *reason) {
     NSTimeInterval now = FPNow();
@@ -353,37 +380,36 @@ static void H_HAMQPPlayerItemFail(id r, SEL s, id item, NSError *err) {
             NSString *reason = [NSString stringWithFormat:@"itemFail(%ld)", (long)code];
             NoteFailure(reason);
             NSTimeInterval failedAt = FPNow();
-            if (failedAt - gBurstStart > 2.0) {
-                gBurstStart = failedAt;
-                gBurstCount = 0;
-            }
-            gBurstCount++;
+            NSUInteger recentFailures = RecordRecentItemFailure(failedAt);
             gTotalItemFails++;
-            if (gBurstCount >= 3) {
-                gBurstCount = 0;
-                gBurstStart = 0.0;
+            if (recentFailures >= 3) {
                 if (gReloadPending) return;
                 gReloadPending = YES;
                 long failsAtBurst = gTotalItemFails;
-                FPLog(@"itemFail(%ld) burst -- probing 2s before reload", (long)code);
+                NSUInteger generation = gPlaybackGeneration;
+                FPLog(@"itemFail(%ld) recovery threshold (%lu in %.0fs) -- probing 3s",
+                      (long)code, (unsigned long)recentFailures, kItemFailureWindow);
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
-                                             (int64_t)(2.0 * NSEC_PER_SEC)),
+                                             (int64_t)(3.0 * NSEC_PER_SEC)),
                                dispatch_get_main_queue(), ^{
+                    if (generation != gPlaybackGeneration) return;
                     gReloadPending = NO;
                     long since = gTotalItemFails - failsAtBurst;
                     BOOL playing = (gRawMediaState == 3);
                     if (since == 0 && playing) {
                         FPLog(@"recovered on its own (no new failures, state=3) "
                               @"-- reload skipped");
+                        ClearRecentItemFailures();
                         return;
                     }
-                    FPLog(@"still broken after 2s (%ld new failures, state=%ld) "
+                    FPLog(@"still broken after 3s (%ld new failures, state=%ld) "
                           @"-- reloading", since, gRawMediaState);
+                    ClearRecentItemFailures();
                     RequestRefetch([reason stringByAppendingString:@"-burst"]);
                 });
             } else {
-                FPLog(@"itemFail(%ld) swallowed (isolated, %ld in window)",
-                      (long)code, gBurstCount);
+                FPLog(@"itemFail(%ld) swallowed (%lu in %.0fs window)",
+                      (long)code, (unsigned long)recentFailures, kItemFailureWindow);
             }
             return;
         }
@@ -415,8 +441,11 @@ static void H_LPCRawMedia(id self, SEL sel, id sv, long from, long to, BOOL mp) 
     if (to == 6) {
         FPLog(@"  stalled; scheduling 8s re-check");
         __weak id weakSelf = self;
+        long failuresAtStall = gTotalItemFails;
+        NSUInteger generation = gPlaybackGeneration;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(8.0 * NSEC_PER_SEC)),
                        dispatch_get_main_queue(), ^{
+            if (generation != gPlaybackGeneration) return;
             id strong = weakSelf;
             if (!strong) return;
             id seq = [strong valueForKey:@"videoSequencer"];
@@ -428,17 +457,22 @@ static void H_LPCRawMedia(id self, SEL sel, id sv, long from, long to, BOOL mp) 
             if ([active respondsToSelector:rmsSel]) {
                 rms = ((long (*)(id, SEL))objc_msgSend)(active, rmsSel);
             }
-            FPLog(@"stall re-check after 8s: rawMediaState=%ld", rms);
-            if (rms == 6) {
-                NoteFailure(@"stalled8s");
-                RequestRefetch(@"stalled8s");
+            long newFailures = gTotalItemFails - failuresAtStall;
+            FPLog(@"stall re-check after 8s: rawMediaState=%ld newItemFails=%ld",
+                  rms, newFailures);
+            if (rms == 6 || newFailures >= 3) {
+                NSString *reason = rms == 6 ? @"stalled8s" : @"stalled8s-itemFailures";
+                NoteFailure(reason);
+                ClearRecentItemFailures();
+                gReloadPending = NO;
+                RequestRefetch(reason);
             }
         });
     }
 }
 
-static void H_YTKPRegisterNotifications(id self, SEL _cmd);
-static void H_YTKPStartProactiveTimer(id self, SEL _cmd);
+static void H_ACERegisterNotifications(id self, SEL _cmd);
+static void H_ACEStartProactiveTimer(id self, SEL _cmd);
 
 static void FinishLPCLoad(id self) {
     if (!FixOn()) return;
@@ -447,14 +481,14 @@ static void FinishLPCLoad(id self) {
     gLastFailAt = 0.0;
     gRefetchStreak = 0;
     gBackoffUntil = 0.0;
-    gBurstStart = 0.0;
-    gBurstCount = 0;
+    ClearRecentItemFailures();
     gTotalItemFails = 0;
     gReloadPending = NO;
+    gPlaybackGeneration++;
     gLoadedAt = FPNow();
     if (gSessionStart <= 0.0) gSessionStart = gLoadedAt;
     gCurrentController = self;
-    H_YTKPRegisterNotifications(self, NULL);
+    H_ACERegisterNotifications(self, NULL);
     FPFlushCounters(YES);
     FPLog(@"---- loadWithPlayerTransition: new playback session ----");
 }
@@ -519,22 +553,22 @@ static void H_LPCInitPlayback(id self, SEL sel) {
     if (gSessionStart <= 0.0) gSessionStart = FPNow();
     gLoadedAt = FPNow();
     gCurrentController = self;
-    H_YTKPRegisterNotifications(self, NULL);
+    H_ACERegisterNotifications(self, NULL);
     FPLog(@"initializePlayback");
 }
 
-static void H_YTKPRegisterNotifications(id self, SEL _cmd) {
+static void H_ACERegisterNotifications(id self, SEL _cmd) {
     (void)_cmd;
     NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
     [nc removeObserver:self name:kNeedsRefetch object:nil];
     [nc removeObserver:self name:kScrubBegan  object:nil];
-    [nc addObserver:self selector:NSSelectorFromString(@"ytkplus_handleRefetch:")
+    [nc addObserver:self selector:NSSelectorFromString(@"ace_handleRefetch:")
                name:kNeedsRefetch object:nil];
-    [nc addObserver:self selector:NSSelectorFromString(@"ytkplus_handleScrubBegan:")
+    [nc addObserver:self selector:NSSelectorFromString(@"ace_handleScrubBegan:")
                name:kScrubBegan  object:nil];
 }
 
-static void H_YTKPStartProactiveTimer(id self, SEL _cmd) {
+static void H_ACEStartProactiveTimer(id self, SEL _cmd) {
     (void)self;
     (void)_cmd;
 }
@@ -569,7 +603,7 @@ static UIView *YTKACEFindPlayerSurface(void) {
     return nil;
 }
 
-static void H_YTKPHandleRefetch(id self, SEL _cmd, NSNotification *note) {
+static void H_ACEHandleRefetch(id self, SEL _cmd, NSNotification *note) {
     (void)_cmd; (void)note;
     if (self != gCurrentController) { FPLog(@"refetch skipped: not current controller"); return; }
     if (gIsRefetching) { FPLog(@"refetch skipped: already in flight"); return; }
@@ -671,7 +705,7 @@ static void H_YTKPHandleRefetch(id self, SEL _cmd, NSNotification *note) {
     });
 }
 
-static void H_YTKPHandleScrubBegan(id self, SEL _cmd, NSNotification *note) {
+static void H_ACEHandleScrubBegan(id self, SEL _cmd, NSNotification *note) {
     (void)_cmd; (void)note;
     if (self != gCurrentController) return;
     FPLog(@"scrub began -> pause");
@@ -834,10 +868,10 @@ void YTKACEInstallFixPlaybackHooks(void) {
     YTKACEInstallInstanceHook(@"YTLocalPlaybackController", @"initializePlayback",
         (IMP)H_LPCInitPlayback, &OrigLPCInitPlayback);
 
-    YTKACEAddInstanceMethod(@"YTLocalPlaybackController", @"ytkplus_registerNotifications", (IMP)H_YTKPRegisterNotifications, "v@:");
-    YTKACEAddInstanceMethod(@"YTLocalPlaybackController", @"ytkplus_startProactiveTimer",   (IMP)H_YTKPStartProactiveTimer,   "v@:");
-    YTKACEAddInstanceMethod(@"YTLocalPlaybackController", @"ytkplus_handleRefetch:",        (IMP)H_YTKPHandleRefetch,         "v@:@");
-    YTKACEAddInstanceMethod(@"YTLocalPlaybackController", @"ytkplus_handleScrubBegan:",     (IMP)H_YTKPHandleScrubBegan,      "v@:@");
+    YTKACEAddInstanceMethod(@"YTLocalPlaybackController", @"ace_registerNotifications", (IMP)H_ACERegisterNotifications, "v@:");
+    YTKACEAddInstanceMethod(@"YTLocalPlaybackController", @"ace_startProactiveTimer",   (IMP)H_ACEStartProactiveTimer,   "v@:");
+    YTKACEAddInstanceMethod(@"YTLocalPlaybackController", @"ace_handleRefetch:",        (IMP)H_ACEHandleRefetch,         "v@:@");
+    YTKACEAddInstanceMethod(@"YTLocalPlaybackController", @"ace_handleScrubBegan:",     (IMP)H_ACEHandleScrubBegan,      "v@:@");
 
     InstallBool(@"YTUserDefaults", @"isWebMEnabled", (IMP)H_IsWebMEnabled, &OrigIsWebMEnabled);
     YTKACEInstallInstanceHook(@"HAMDefaultABRPolicy",

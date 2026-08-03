@@ -183,23 +183,23 @@ static UIColor *YTKACESettingsBackground(void) {
 
 static UIColor *YTKACESettingsCellBackground(void) {
     return [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *traits) {
-        return YTKACEInterfaceBackgroundColor(traits);
+        return YTKACEInterfaceSurfaceColor(traits);
     }];
 }
 
 BOOL YTKACEPreferenceNeedsRestart(NSString *key) {
     return [@[
         YTKACEOLEDKey,
-        @"kEnableUsePremiumLogo",
-        @"kEnableHideYTLogo",
-        @"kEnableiPadOSMode",
-        @"kEnableDisableRTL",
-        @"kEnableLegacyQSelection",
-        @"kEnableHideStatusBar",
-        @"kEnabledStartupPage",
-        @"kEnablefixvideoplayback",
-        @"kEnableKeepCaptionOn",
-        @"kEnableHideNotificationBill"
+        @"YTKACE.Preference.Navigation.PremiumLogo",
+        @"YTKACE.Preference.Navigation.LogoHidden",
+        @"YTKACE.Preference.App.iPadLayout",
+        @"YTKACE.Preference.App.RTLDisabled",
+        @"YTKACE.Preference.Playback.LegacyQualityMenu",
+        @"YTKACE.Preference.Navigation.StatusBarHidden",
+        @"YTKACE.Preference.Tabs.Startup",
+        @"YTKACE.Preference.Playback.Recovery",
+        @"YTKACE.Preference.Playback.CaptionsAlwaysOn",
+        @"YTKACE.Preference.Navigation.NotificationsHidden"
     ] containsObject:key];
 }
 
@@ -236,7 +236,7 @@ void YTKACEShowRestartNotice(UIViewController *controller) {
 
 static void YTKACEStorePickerValue(NSString *key, id value, NSUInteger index) {
     YTKACESetPreferenceObject(key, value);
-    if ([key isEqualToString:@"kEnabledStartupPage"]) {
+    if ([key isEqualToString:@"YTKACE.Preference.Tabs.Startup"]) {
         NSArray *browseIDs = @[@"FEwhat_to_watch", @"FEexplore", @"FEsubscriptions",
                                @"FEshorts", @"FElibrary"];
         if (index < browseIDs.count) {
@@ -324,13 +324,13 @@ void YTKACEPresentChoiceMenu(UIViewController *presenter,
     YTKACEPresentSelectionMenu(presenter, sourceView, title, titles, selectedIndex,
         ^(NSUInteger index) {
             YTKACEStorePickerValue(key, values[index], index);
-            if (([key isEqualToString:@"kBrightnessSide"] ||
-                 [key isEqualToString:@"kVolumeSide"]) && index < 2) {
-                NSString *otherKey = [key isEqualToString:@"kBrightnessSide"]
-                    ? @"kVolumeSide" : @"kBrightnessSide";
+            if (([key isEqualToString:@"YTKACE.Preference.Gestures.BrightnessSide"] ||
+                 [key isEqualToString:@"YTKACE.Preference.Gestures.VolumeSide"]) && index < 2) {
+                NSString *otherKey = [key isEqualToString:@"YTKACE.Preference.Gestures.BrightnessSide"]
+                    ? @"YTKACE.Preference.Gestures.VolumeSide" : @"YTKACE.Preference.Gestures.BrightnessSide";
                 id otherValue = YTKACEPreferenceObject(otherKey);
                 NSInteger otherSide = otherValue == nil
-                    ? ([otherKey isEqualToString:@"kBrightnessSide"] ? 1 : 0)
+                    ? ([otherKey isEqualToString:@"YTKACE.Preference.Gestures.BrightnessSide"] ? 1 : 0)
                     : [otherValue integerValue];
                 if (otherSide == [values[index] integerValue]) {
                     YTKACEStorePickerValue(otherKey, @([values[index] integerValue] == 0),
@@ -469,8 +469,7 @@ NSString *YTKACEPickerSummary(NSString *key,
     [super viewDidLoad];
     self.tableView.cellLayoutMarginsFollowReadableWidth = NO;
     self.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
-    self.tableView.separatorInset = UIEdgeInsetsMake(0.0, 16.0, 0.0, 16.0);
-    self.tableView.rowHeight = 40.0;
+    self.tableView.rowHeight = 50.0;
     if (@available(iOS 15.0, *)) {
         self.tableView.sectionHeaderTopPadding = 0.0;
     }
@@ -571,7 +570,7 @@ willDisplayHeaderView:(UIView *)view
     if ([type isEqualToString:@"toggle"]) {
         UISwitch *toggle = [UISwitch new];
         toggle.transform = CGAffineTransformMakeScale(0.95, 0.95);
-        toggle.onTintColor = UIColor.systemBlueColor;
+        toggle.onTintColor = [UIColor colorWithRed:0.749 green:0.0 blue:0.075 alpha:1.0];
         id stored = YTKACEPreferenceObject(item[@"key"]);
         toggle.on = [stored respondsToSelector:@selector(boolValue)] && [stored boolValue];
         objc_setAssociatedObject(toggle,
@@ -720,7 +719,7 @@ willDisplayHeaderView:(UIView *)view
     NSDictionary *item = objc_getAssociatedObject(sender, YTKACEItemAssociation);
     NSString *key = item[@"key"];
     YTKACESetPreference(key, sender.isOn);
-    if ([key isEqualToString:@"kEnablefixvideoplayback"] && sender.isOn) {
+    if ([key isEqualToString:@"YTKACE.Preference.Playback.Recovery"] && sender.isOn) {
         NSString *message = @"✅ Playback recovery hooks will install on next launch.\n\n"
             @"📍 What this does:\n• Forces iOS guard attestation off\n• Marks heartbeat policy errors non-fatal\n• Swallows halt / cannot-play / error-overlay paths\n• Forces skip-on-playability-error\n\n"
             @"📍 When to use it:\nEnable if videos error out mid-playback, show \"an error occurred,\" or get killed by heartbeat / attestation failures.\n\n"
@@ -769,8 +768,8 @@ willDisplayHeaderView:(UIView *)view
             item[@"values"], item[@"key"],
             [item[@"default"] unsignedIntegerValue], ^(__unused NSUInteger index) {
                 NSString *key = item[@"key"];
-                if ([key isEqualToString:@"kBrightnessSide"] ||
-                    [key isEqualToString:@"kVolumeSide"]) {
+                if ([key isEqualToString:@"YTKACE.Preference.Gestures.BrightnessSide"] ||
+                    [key isEqualToString:@"YTKACE.Preference.Gestures.VolumeSide"]) {
                     [self.tableView reloadData];
                 } else {
                     [self.tableView reloadRowsAtIndexPaths:@[indexPath]
@@ -1058,7 +1057,7 @@ static NSArray *YTKACEQualityValues(void) {
 UIViewController *YTKACEMakeStartupPickerController(void) {
     return [[YTKACEPickerController alloc]
         initWithTitle:@"Startup Page"
-                   key:@"kEnabledStartupPage"
+                   key:@"YTKACE.Preference.Tabs.Startup"
                 titles:@[@"Home", @"Explore", @"Subscriptions", @"Shorts", @"You"]
                 values:@[@0, @1, @2, @3, @4]
           defaultIndex:0];
@@ -1066,7 +1065,7 @@ UIViewController *YTKACEMakeStartupPickerController(void) {
 
 UIViewController *YTKACEMakeWiFiQualityController(void) {
     return [[YTKACEPickerController alloc] initWithTitle:@"Wi-Fi Quality"
-                                                    key:@"wiFiPlaybackIndex"
+                                                    key:@"YTKACE.Preference.Playback.WiFiQuality"
                                                  titles:YTKACEQualityTitles()
                                                  values:YTKACEQualityValues()
                                            defaultIndex:0];
@@ -1074,7 +1073,7 @@ UIViewController *YTKACEMakeWiFiQualityController(void) {
 
 UIViewController *YTKACEMakeCellularQualityController(void) {
     return [[YTKACEPickerController alloc] initWithTitle:@"Cellular Quality"
-                                                    key:@"celluarPlaybackIndex"
+                                                    key:@"YTKACE.Preference.Playback.CellularQuality"
                                                  titles:YTKACEQualityTitles()
                                                  values:YTKACEQualityValues()
                                            defaultIndex:0];
@@ -1083,13 +1082,13 @@ UIViewController *YTKACEMakeCellularQualityController(void) {
 UIViewController *YTKACEMakeSponsorBlockController(void) {
     NSMutableArray *sections = [NSMutableArray arrayWithObject:@[
         YTKACEToggle(@"Enable", YTKACESponsorBlockKey, @"", @""),
-        YTKACEPicker(@"Skip Alerts", @"YTKACESponsorNotificationMode",
+        YTKACEPicker(@"Skip Alerts", @"YTKACE.Preference.SponsorBlock.NotificationMode",
                      @[@"Skip + Unskip", @"Skip Only", @"Silent"],
                      @[@0, @1, @2], 0, @"", @""),
-        YTKACEToggle(@"Audio Notification", @"AudioNotificationOnSkip", @"", @""),
-        YTKACESlider(@"Skip Alert Duration", @"YTKACESponsorSkipAlertDuration",
+        YTKACEToggle(@"Audio Notification", @"YTKACE.Preference.SponsorBlock.AudioFeedback", @"", @""),
+        YTKACESlider(@"Skip Alert Duration", @"YTKACE.Preference.SponsorBlock.SkipAlertSeconds",
                      1.0, 10.0, 1.0, 4.0),
-        YTKACESlider(@"Unskip Alert Duration", @"YTKACESponsorUnskipAlertDuration",
+        YTKACESlider(@"Unskip Alert Duration", @"YTKACE.Preference.SponsorBlock.UnskipAlertSeconds",
                      1.0, 10.0, 1.0, 4.0)
     ]];
     NSMutableArray<NSString *> *titles = [NSMutableArray arrayWithObject:@"MAIN"];
@@ -1143,38 +1142,37 @@ UIViewController *YTKACEMakePlayerControlsController(void) {
         [(YTKACEOptionsController *)controller showResult:@"Cache Cleared" message:nil];
     };
     NSArray *progressSection = @[
-        YTKACESegmentedStacked(@"Progress bar style", @"kYTKACEProgressBarStyle",
+        YTKACESegmentedStacked(@"Progress bar style", @"YTKACE.Preference.Progress.Style",
                                @[@"Default", @"Solid color", @"Gradient"], @[@0, @1, @2], 0),
-        YTKACEColor(@"Main color", @"kYTKACEProgressMainColor", @"#FF0000"),
-        YTKACEColor(@"Gradient highlight", @"kYTKACEProgressGradientColor", @"#8E8EFF"),
-        YTKACEColor(@"Scrubber color", @"kYTKACEProgressScrubberColor", @"#FF0000")
+        YTKACEColor(@"Main color", @"YTKACE.Preference.Progress.MainColor", @"#FF0000"),
+        YTKACEColor(@"Gradient highlight", @"YTKACE.Preference.Progress.HighlightColor", @"#8E8EFF"),
+        YTKACEColor(@"Scrubber color", @"YTKACE.Preference.Progress.ScrubberColor", @"#FF0000")
     ];
-    return YTKACEPage(YTKACELocalized(@"Player Controls"), @[
+    return YTKACEPage(@"Player", @[
+        @[
+            YTKACEToggle(@"Download Button", YTKACEDownloadKey, @"", @""),
+            YTKACEToggle(@"PiP Button", YTKACEPiPKey, @"", @""),
+            YTKACEToggle(@"Loop Button", YTKACELoopKey, @"", @""),
+            YTKACEToggle(@"Background Audio", YTKACEBackgroundPlaybackKey, @"", @"")
+        ],
+        @[
+            YTKACEToggle(@"Speed Buttons", YTKACESpeedKey, @"", @""),
+            YTKACEToggle(@"Remove Ads", YTKACENoAdsKey, @"", @""),
+            YTKACEToggleDetail(@"Playback Fix",
+                @"Helps recover playback in sideloaded builds.",
+                @"YTKACE.Preference.Playback.Recovery")
+        ],
         progressSection,
         @[
-            YTKACEToggle(@"Enable Download Feature", YTKACEDownloadKey, @"", @""),
-            YTKACEToggle(@"Enable PiP", YTKACEPiPKey, @"", @""),
-            YTKACEToggle(@"Add Loop Toggle", YTKACELoopKey, @"", @""),
-            YTKACEToggle(@"Play in Background", YTKACEBackgroundPlaybackKey, @"", @""),
-            YTKACEToggle(@"Remove Advertisements", YTKACENoAdsKey, @"", @"")
+            YTKACEActionDetail(@"Back Up", @"Save settings and media to a ZIP file.", backup),
+            YTKACEActionDetail(@"Restore", @"Open a YTKACE backup from Files.", restore),
+            YTKACEActionDetail(@"Import", @"Add video, audio, Shorts, artwork, or subtitles.", importMedia)
         ],
         @[
-            YTKACEToggle(@"Playback Speed toggles", YTKACESpeedKey, @"", @""),
-            YTKACEToggleDetail(@"🔧 Fix Playback & Account Recovery",
-                @"🧰 Fixes playback guidance for sideloaded apps.",
-                @"kEnablefixvideoplayback")
-        ],
-        @[
-            YTKACEActionDetail(@"Create Backup", @"Export settings and all media as a ZIP file.", backup),
-            YTKACEActionDetail(@"Restore Backup", @"Choose a YTKACE ZIP backup from Files.", restore)
-        ],
-        @[YTKACEActionDetail(@"Import Media", @"Choose Video, Audio, or Shorts, then select media, artwork, and subtitles.", importMedia)],
-        @[
-            YTKACEPicker(@"Clear on Startup", @"clearonstartup", @[@"Off", @"On"], @[@NO, @YES], 0, @"", @""),
-            YTKACEActionDetail(@"Clear Cache", @"Remove downloaded cache files.", clearCache)
+            YTKACEPicker(@"Clear Cache at Launch", @"YTKACE.Preference.Downloads.ClearOnStartup", @[@"Off", @"On"], @[@NO, @YES], 0, @"", @""),
+            YTKACEActionDetail(@"Clear Cache Now", @"Delete temporary download files.", clearCache)
         ]
-    ], @[@"PROGRESS BAR", @"OVERLAY PLAYER", @"PLAYBACK", @"BACKUP & RESTORE",
-         @"IMPORT MEDIA", @"CLEAR CACHE"]);
+    ], @[@"BUTTONS", @"PLAYBACK", @"PROGRESS BAR", @"FILES", @"STORAGE"]);
 }
 
 UIViewController *YTKACEMakeTabBarOptionsController(void) {
@@ -1184,148 +1182,146 @@ UIViewController *YTKACEMakeTabBarOptionsController(void) {
 UIViewController *YTKACEMakeOverlayOptionsController(void) {
     return YTKACEPage(YTKACELocalized(@"Overlay"), @[
         @[
-            YTKACEToggle(@"Hide Suggested Videos", @"kEnableHideSuggestedVideo", @"", @""),
-            YTKACEToggle(@"Hide Comments", @"kEnableHideComments", @"", @""),
-            YTKACEToggle(@"Hide Comment Previews", @"kEnableHideCommentReview", @"", @""),
-            YTKACEToggle(@"Hide Comment Guidelines", @"kEnableHideCommentGuidlines", @"", @""),
-            YTKACEToggle(@"Hide Paid Promotion Notice", @"kEnableNoPaidPromotion", @"", @"")
+            YTKACEToggle(@"Remove Suggested Videos", @"YTKACE.Preference.Overlay.SuggestedVideosHidden", @"", @""),
+            YTKACEToggle(@"Remove Comments", @"YTKACE.Preference.Overlay.CommentsHidden", @"", @""),
+            YTKACEToggle(@"Remove Comment Preview", @"YTKACE.Preference.Overlay.CommentPreviewsHidden", @"", @""),
+            YTKACEToggle(@"Remove Comment Guidelines", @"YTKACE.Preference.Overlay.CommentGuidelinesHidden", @"", @""),
+            YTKACEToggle(@"Remove Paid Promotion Label", @"YTKACE.Preference.Overlay.PaidPromotionHidden", @"", @"")
         ],
         @[
-            YTKACEToggle(@"Show Status Bar in Overlay", @"kEnableShowStatusBarInOverlay", @"", @""),
-            YTKACEToggle(@"Disable Double Tap", @"kEnableDisableDoubleTap", @"", @""),
-            YTKACEToggle(@"Disable Continue Watching", @"kEnableDisableContinueWatching", @"", @""),
-            YTKACEToggle(@"Hide Quick Actions", @"kEnableHideOverlayQuickAction", @"", @"")
+            YTKACEToggle(@"Status Bar", @"YTKACE.Preference.Overlay.StatusBarVisible", @"", @""),
+            YTKACEToggle(@"Remove Quick Actions", @"YTKACE.Preference.Overlay.QuickActionsHidden", @"", @""),
+            YTKACEToggle(@"Stop Continue Watching", @"YTKACE.Preference.Overlay.ContinueWatchingDisabled", @"", @""),
+            YTKACEToggle(@"Turn Off Double Tap", @"YTKACE.Preference.Overlay.DoubleTapDisabled", @"", @"")
         ],
         @[
-            YTKACEToggle(@"Always Show Play/Pause Button", @"kEnableShowOverlaySmart", @"", @""),
-            YTKACEToggle(@"Always Show All Controls", @"kEnableShowMediaController", @"", @""),
-            YTKACEToggle(@"Hide Dark Overlay Background", @"kEnableHideDarkOverlayBackground", @"", @""),
-            YTKACEToggle(@"Keep Captions On", @"kEnableKeepCaptionOn", @"", @""),
-            YTKACEToggle(@"Keep Progress Bar Visible", @"kEnableShowProgressBar", @"", @"")
+            YTKACEToggle(@"Keep Play Button Visible", @"YTKACE.Preference.Overlay.AlwaysShowPlayPause", @"", @""),
+            YTKACEToggle(@"Keep Controls Visible", @"YTKACE.Preference.Overlay.AlwaysShowControls", @"", @""),
+            YTKACEToggle(@"Remove Player Dimming", @"YTKACE.Preference.Overlay.DimmingRemoved", @"", @""),
+            YTKACEToggle(@"Captions On", @"YTKACE.Preference.Playback.CaptionsAlwaysOn", @"", @""),
+            YTKACEToggle(@"Keep Timeline Visible", @"YTKACE.Preference.Overlay.ProgressAlwaysVisible", @"", @"")
         ],
         @[
-            YTKACEToggle(@"Disable Previous & Next", @"kEnableDisablePreviousNextButton", @"", @""),
-            YTKACEToggle(@"Compact Previous & Next", @"kEnablePreviousNextButtonPadding", @"", @""),
-            YTKACEToggle(@"Hide Previous & Next", @"kEnableHidePreviousNextButton", @"", @"")
+            YTKACEToggle(@"Lock Previous/Next", @"YTKACE.Preference.Overlay.PreviousNextDisabled", @"", @""),
+            YTKACEToggle(@"Smaller Previous/Next", @"YTKACE.Preference.Overlay.CompactPreviousNext", @"", @""),
+            YTKACEToggle(@"Remove Previous/Next", @"YTKACE.Preference.Overlay.PreviousNextHidden", @"", @"")
         ],
         @[
-            YTKACEToggle(@"Hide Info Card", @"kEnableHideInfoCard", @"", @""),
-            YTKACEToggle(@"Hide Watermark", @"kEnableHideWaterMark", @"", @""),
-            YTKACEToggle(@"Hide Autoplay Button", @"kEnableHideAutoplayToggle", @"", @""),
-            YTKACEToggle(@"Hide Captions Button", @"kEnableHideCaptionsToggle", @"", @""),
-            YTKACEToggle(@"Hide Play/Pause", @"kEnableHidePlayPuase", @"", @""),
-            YTKACEToggle(@"Hide More/Gear Icon", @"kEnableHideMoreGearIcon", @"", @""),
-            YTKACEToggle(@"Hide Cast Button", @"kEnableHideCastButtonOverlay", @"", @""),
-            YTKACEToggle(@"Hide Endscreen Videos", @"kEnableHideEndScreenVideos", @"", @""),
-            YTKACEToggle(@"Hide Related Videos", @"kEnableHideRelatedVideos", @"", @"")
+            YTKACEToggle(@"Remove Info Cards", @"YTKACE.Preference.Overlay.InfoCardsHidden", @"", @""),
+            YTKACEToggle(@"Remove Watermark", @"YTKACE.Preference.Overlay.WatermarkHidden", @"", @""),
+            YTKACEToggle(@"Remove Autoplay", @"YTKACE.Preference.Overlay.AutoplayHidden", @"", @""),
+            YTKACEToggle(@"Remove Captions Button", @"YTKACE.Preference.Overlay.CaptionsButtonHidden", @"", @""),
+            YTKACEToggle(@"Remove Play Button", @"YTKACE.Preference.Overlay.PlayPauseHidden", @"", @""),
+            YTKACEToggle(@"Remove Settings Button", @"YTKACE.Preference.Overlay.MoreButtonHidden", @"", @""),
+            YTKACEToggle(@"Remove Cast Button", @"YTKACE.Preference.Overlay.CastHidden", @"", @""),
+            YTKACEToggle(@"Remove End Screen", @"YTKACE.Preference.Overlay.EndScreenHidden", @"", @""),
+            YTKACEToggle(@"Remove Related Videos", @"YTKACE.Preference.Overlay.RelatedVideosHidden", @"", @"")
         ]
-    ], @[@"VIDEO PLAYER", @"OVERLAY", @"OVERLAY CONTROLLER", @"PREVIOUS & NEXT BUTTONS", @"HIDE ITEMS"]);
+    ], @[@"WATCH PAGE", @"GESTURES", @"ALWAYS VISIBLE", @"PREVIOUS & NEXT", @"HIDE FROM PLAYER"]);
 }
 
 UIViewController *YTKACEMakeStreamingOptionsController(void) {
-    return YTKACEPage(YTKACELocalized(@"Streaming"), @[
-        @[YTKACEToggle(@"Enable Legacy Quality Mode", @"kEnableLegacyQSelection", @"", @"")],
+    return YTKACEPage(@"Playback", @[
+        @[YTKACEToggle(@"Old Quality Menu", @"YTKACE.Preference.Playback.LegacyQualityMenu", @"", @"")],
         @[
-            YTKACEToggle(@"Custom Skip Duration", @"kEnableCustomDoubleTapToSkipDuration", @"", @""),
-            YTKACEStepper(@"Seconds: 10", @"kEnableCustomDoubleTapToSkipChnges", 5.0, 60.0, 5.0, 10.0)
+            YTKACEToggle(@"Custom Double-Tap Time", @"YTKACE.Preference.Playback.CustomDoubleTap", @"", @""),
+            YTKACEStepper(@"Skip Time", @"YTKACE.Preference.Playback.DoubleTapSeconds", 5.0, 60.0, 5.0, 10.0)
         ],
         @[
-            YTKACEToggle(@"Disable Autoplay Videos", @"kEnableDisableAutoplayVideos", @"", @""),
-            YTKACEToggle(@"Play HD Videos over 3G/4G/5G", @"kEnablePlayHDVideosOverCellur", @"", @"")
+            YTKACEToggle(@"Stop Autoplay", @"YTKACE.Preference.Playback.AutoplayDisabled", @"", @""),
+            YTKACEToggle(@"HD on Mobile Data", @"YTKACE.Preference.Playback.HDOnCellular", @"", @"")
         ]
-    ], @[@"", @"DOUBLE TAP OPTIONS", @"STREAMING"]);
+    ], @[@"QUALITY", @"DOUBLE TAP", @"AUTOPLAY & DATA"]);
 }
 
 UIViewController *YTKACEMakeNavigationOptionsController(void) {
-    return YTKACEPage(YTKACELocalized(@"Navigation Bar"), @[
-        @[YTKACEToggle(@"Hide Status Bar", @"kEnableHideStatusBar", @"", @"")],
+    return YTKACEPage(@"Navigation", @[
         @[
-            YTKACEToggle(@"Use Premium Logo", @"kEnableUsePremiumLogo", @"", @""),
-            YTKACEToggle(@"Cast Confirmation", @"kEnableCastconfirm", @"", @"")
+            YTKACEToggle(@"Premium Logo", @"YTKACE.Preference.Navigation.PremiumLogo", @"", @""),
+            YTKACEToggle(@"Confirm Before Casting", @"YTKACE.Preference.Navigation.CastConfirmation", @"", @"")
         ],
         @[
-            YTKACEToggle(@"Hide YouTube Logo", @"kEnableHideYTLogo", @"", @""),
-            YTKACEToggle(@"Hide Notifications", @"kEnableHideNotificationBill", @"", @""),
-            YTKACEToggle(@"Hide Account", @"kEnableHideAccount", @"", @""),
-            YTKACEToggle(@"Hide Search", @"kEnableHideSearch", @"", @""),
-            YTKACEToggle(@"Hide Cast Button", @"kEnableHideCastButton", @"", @""),
-            YTKACEToggle(@"Hide Topic Section", @"kEnableNoTopics", @"", @"")
+            YTKACEToggle(@"Remove YouTube Logo", @"YTKACE.Preference.Navigation.LogoHidden", @"", @""),
+            YTKACEToggle(@"Remove Notifications", @"YTKACE.Preference.Navigation.NotificationsHidden", @"", @""),
+            YTKACEToggle(@"Remove Account Button", @"YTKACE.Preference.Navigation.AccountHidden", @"", @""),
+            YTKACEToggle(@"Remove Search", @"YTKACE.Preference.Navigation.SearchHidden", @"", @""),
+            YTKACEToggle(@"Remove Cast", @"YTKACE.Preference.Navigation.CastHidden", @"", @"")
+        ],
+        @[
+            YTKACEToggle(@"Hide Status Bar", @"YTKACE.Preference.Navigation.StatusBarHidden", @"", @""),
+            YTKACEToggle(@"Remove Topic Chips", @"YTKACE.Preference.Navigation.TopicsHidden", @"", @"")
         ]
-    ], @[@"STATUS BAR", @"", @"HIDE ITEMS"]);
+    ], @[@"BRAND & CAST", @"TOP BUTTONS", @"PAGE CHROME"]);
 }
 
 UIViewController *YTKACEMakeShortsOptionsController(void) {
     return YTKACEPage(YTKACELocalized(@"Shorts"), @[
         @[
-            YTKACEToggle(@"Enable Bottom Progress Bar", @"shortsProgress", @"", @""),
-            YTKACEToggle(@"Auto Skip Shorts", @"autoSkipShorts", @"", @""),
-            YTKACEPicker(@"Download Button", @"kShortsDownloadButtonPosition",
-                         @[@"Top-Right Overlay", @"Above Shorts Actions"],
+            YTKACEToggle(@"Progress Bar", @"shortsProgress", @"", @""),
+            YTKACEToggle(@"Auto Advance", @"autoSkipShorts", @"", @""),
+            YTKACEPicker(@"Download Button Position", @"YTKACE.Preference.Shorts.DownloadPosition",
+                         @[@"Top Corner", @"Action Buttons"],
                          @[@0, @1], 0, @"", @"")
         ],
         @[
-            YTKACEToggle(@"Hide Shorts from Feed", @"kEnableHideYTShorts", @"", @""),
-            YTKACEToggle(@"Hide Pause Card", @"kEnableBlockShortsOverlays", @"", @""),
-            YTKACEToggle(@"Hide Product Recommendations", @"kEnableHideShortsProducts", @"", @""),
-            YTKACEToggle(@"Hide Sticker Ads", @"kEnableHideShortsStickerAds", @"", @""),
-            YTKACEToggle(@"Hide Like Button", @"kEnableHideShortsLike", @"", @""),
-            YTKACEToggle(@"Hide Comments Button", @"kEnableHideShortsComments", @"", @""),
-            YTKACEToggle(@"Hide Share Button", @"kEnableHideShortsShare", @"", @""),
-            YTKACEToggle(@"Hide Remix Button", @"kEnableHideShortsRemix", @"", @""),
-            YTKACEToggle(@"Hide Audio Track Button", @"kEnableHideShortsAudioTrack", @"", @"")
+            YTKACEToggle(@"Remove Shorts Shelves", @"YTKACE.Preference.Shorts.FeedHidden", @"", @""),
+            YTKACEToggle(@"Remove Pause Card", @"YTKACE.Preference.Shorts.PauseCardHidden", @"", @""),
+            YTKACEToggle(@"Remove Products", @"YTKACE.Preference.Shorts.ProductsHidden", @"", @""),
+            YTKACEToggle(@"Remove Sticker Ads", @"YTKACE.Preference.Shorts.StickerAdsHidden", @"", @"")
+        ],
+        @[
+            YTKACEToggle(@"Remove Like", @"YTKACE.Preference.Shorts.LikeHidden", @"", @""),
+            YTKACEToggle(@"Remove Comments", @"YTKACE.Preference.Shorts.CommentsHidden", @"", @""),
+            YTKACEToggle(@"Remove Share", @"YTKACE.Preference.Shorts.ShareHidden", @"", @""),
+            YTKACEToggle(@"Remove Remix", @"YTKACE.Preference.Shorts.RemixHidden", @"", @""),
+            YTKACEToggle(@"Remove Sound", @"YTKACE.Preference.Shorts.SoundHidden", @"", @"")
         ]
-    ], @[@"SHORTS", @"HIDE ELEMENTS"]);
+    ], @[@"PLAYBACK", @"FEED", @"ACTION BUTTONS"]);
 }
 
 UIViewController *YTKACEMakeMiscOptionsController(void) {
-    NSArray<NSString *> *languageCodes = YTKACEAvailableLanguages();
-    NSMutableArray<NSString *> *languageNames =
-        [NSMutableArray arrayWithCapacity:languageCodes.count];
-    for (NSString *code in languageCodes) {
-        [languageNames addObject:YTKACELanguageDisplayName(code)];
-    }
-    return YTKACEPage(YTKACELocalized(@"Miscellaneous"), @[
+    return YTKACEPage(@"Other", @[
         @[
-            YTKACEPicker(@"Language", YTKACELanguageKey, languageNames,
-                         languageCodes, 0, @"", @"")
+            YTKACEToggle(@"OLED Black", YTKACEOLEDKey, @"", @""),
+            YTKACEToggle(@"Skip Launch Animation", @"YTKACE.Preference.Appearance.LaunchAnimationDisabled",
+                         @"Starts YouTube faster", @"")
         ],
         @[
-            YTKACEToggle(@"Enable iPadOS Mode", @"kEnableiPadOSMode", @"", @""),
-            YTKACEToggle(@"Disable Drag & Drop", @"kEnableDisableDragDrop", @"", @"")
+            YTKACEToggle(@"iPad Layout", @"YTKACE.Preference.App.iPadLayout", @"", @""),
+            YTKACEToggle(@"Block Drag and Drop", @"YTKACE.Preference.App.DragDropDisabled", @"", @""),
+            YTKACEToggle(@"Block RTL Layout", @"YTKACE.Preference.App.RTLDisabled", @"", @"")
         ],
         @[
-            YTKACEToggle(@"Hide Search History", @"kEnableNoSearchedHistory", @"", @""),
-            YTKACEToggle(@"Hide Premium Popup", @"kEnableNoPremiumpopup", @"", @""),
-            YTKACEToggle(@"Hide YouTube Update Popup", @"kEnableNoYTUpdate", @"", @""),
-            YTKACEToggle(@"Use Native Share Sheet", @"kEnableNativeShare", @"", @""),
-            YTKACEToggle(@"Remove Launch Animation", @"kEnableRemoveLaunchAnimation",
-                         @"Starts YouTube faster", @""),
-            YTKACEToggle(@"Profile Picture Preview", @"kEnableProfilePictureViewer", @"", @""),
-            YTKACEToggle(@"Enable Mini Player for All Videos", @"kEnableMiniPlayerAllVideos", @"", @""),
-            YTKACEToggle(@"Hide HUD Alerts", @"kEnableHideHudeAlerts", @"", @""),
-            YTKACEToggle(@"Disable RTL Languages", @"kEnableDisableRTL", @"", @""),
-            YTKACEToggle(@"OLED Dark Mode", YTKACEOLEDKey, @"", @""),
-            YTKACEToggle(@"Bypass Age Restriction", @"kEnableAgeRestriction", @"", @""),
-            YTKACEToggle(@"Disable Captions", @"kEnableDisableCaptions", @"", @"")
+            YTKACEToggle(@"iOS Share Sheet", @"YTKACE.Preference.Sharing.NativeSheet", @"", @""),
+            YTKACEToggle(@"Avatar Preview", @"YTKACE.Preference.Profiles.Preview", @"", @""),
+            YTKACEToggle(@"Mini Player for Kids Videos", @"YTKACE.Preference.Playback.KidsMiniPlayer", @"", @"")
+        ],
+        @[
+            YTKACEToggle(@"Don't Save Searches", @"YTKACE.Preference.Privacy.SearchHistoryDisabled", @"", @""),
+            YTKACEToggle(@"Block Premium Prompts", @"YTKACE.Preference.Ads.PremiumPromosHidden", @"", @""),
+            YTKACEToggle(@"Block Update Prompts", @"YTKACE.Preference.App.UpdatePromptHidden", @"", @""),
+            YTKACEToggle(@"Mute HUD Alerts", @"YTKACE.Preference.App.HUDAlertsHidden", @"", @""),
+            YTKACEToggle(@"Skip Age Gate", @"YTKACE.Preference.Content.AgeGateBypass", @"", @""),
+            YTKACEToggle(@"Captions Off", @"YTKACE.Preference.Playback.CaptionsDisabled", @"", @"")
         ]
-    ], @[YTKACELocalized(@"Language"), @"IPAD MODE", @"MISCELLANEOUS"]);
+    ], @[@"APPEARANCE", @"LAYOUT", @"SYSTEM", @"PRIVACY & PROMPTS"]);
 }
 
 UIViewController *YTKACEMakeGestureOptionsController(void) {
     NSArray *sideTitles = @[@"Right", @"Left", @"Disabled"];
     NSArray *sideValues = @[@0, @1, @2];
-    return YTKACEPage(YTKACELocalized(@"Gestures"), @[
+    return YTKACEPage(@"Gestures", @[
         @[
-            YTKACEPicker(@"Brightness", @"kBrightnessSide", sideTitles, sideValues, 1, @"", @""),
-            YTKACEPicker(@"Volume", @"kVolumeSide", sideTitles, sideValues, 0, @"", @""),
-            YTKACEText(@"Set which side controls brightness and volume.\n\nTips:\n1. In portrait mode, swipe down on either side of the player.\n2. In fullscreen, swipe from the bottom area due to YouTube’s gesture handling.")
+            YTKACEPicker(@"Brightness", @"YTKACE.Preference.Gestures.BrightnessSide", sideTitles, sideValues, 1, @"", @""),
+            YTKACEPicker(@"Volume", @"YTKACE.Preference.Gestures.VolumeSide", sideTitles, sideValues, 0, @"", @""),
+            YTKACEText(@"Choose a side for brightness and volume. Swipe vertically on that side of the player.")
         ],
         @[
-            YTKACEToggle(@"Hold to Seek", @"kEnableHoldToSeek", @"", @""),
-            YTKACESlider(@"Seek Duration", @"kSeekDuration", 1.0, 60.0, 1.0, 10.0),
-            YTKACEToggle(@"Tap to Seek", @"kEnableTapToSeek", @"", @"")
+            YTKACEToggle(@"Hold to Seek", @"YTKACE.Preference.Gestures.HoldToSeek", @"", @""),
+            YTKACESlider(@"Seek Speed", @"YTKACE.Preference.Gestures.HoldSeekSeconds", 1.0, 60.0, 1.0, 10.0),
+            YTKACEToggle(@"Tap to Seek", @"YTKACE.Preference.Playback.TapToSeek", @"", @"")
         ]
-    ], @[@"VOLUME & BRIGHTNESS GESTURES", @"SEEK SETTINGS"]);
+    ], @[@"BRIGHTNESS & VOLUME", @"SEEK"]);
 }
 
 UIViewController *YTKACEMakeCreditsController(void) {

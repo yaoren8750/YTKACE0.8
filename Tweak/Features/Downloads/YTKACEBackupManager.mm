@@ -91,14 +91,14 @@ static NSDictionary *YTKACEBackupSettings(void) {
         [defaults persistentDomainForName:bundleID] ?: @{};
     NSMutableDictionary *settings = [NSMutableDictionary dictionary];
     NSSet *named = [NSSet setWithArray:@[
-        @"wiFiPlaybackIndex", @"celluarPlaybackIndex", @"sbSkipMode",
-        @"sponsorBlock", @"clearonstartup", @"AudioNotificationOnSkip"
+        @"YTKACE.Preference.Playback.WiFiQuality", @"YTKACE.Preference.Playback.CellularQuality", @"YTKACE.Preference.SponsorBlock.Mode",
+        @"YTKACE.Preference.SponsorBlock.Enabled", @"YTKACE.Preference.Downloads.ClearOnStartup",
+        @"YTKACE.Preference.SponsorBlock.AudioFeedback"
     ]];
     [domain enumerateKeysAndObjectsUsingBlock:^(NSString *key, id value, BOOL *stop) {
         (void)stop;
-        if ([key hasPrefix:@"YTKACE"] || [key hasPrefix:@"YTKPlus"] ||
-            [key hasPrefix:@"kEnable"] || [key hasPrefix:@"kHide"] ||
-            [key hasPrefix:@"kTab"] || [named containsObject:key]) {
+        if ([key hasPrefix:@"YTKACE.Preference."] ||
+            [named containsObject:key]) {
             settings[key] = value;
         }
     }];

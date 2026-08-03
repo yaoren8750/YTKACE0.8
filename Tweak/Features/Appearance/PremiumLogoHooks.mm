@@ -35,7 +35,7 @@ static NSString *YTKACEPremiumName(NSString *name,
 }
 
 static BOOL YTKACEShouldReplaceLogo(NSString *name) {
-    if (!YTKACEFeatureEnabled(@"kEnableUsePremiumLogo") ||
+    if (!YTKACEFeatureEnabled(@"YTKACE.Preference.Navigation.PremiumLogo") ||
         ![name isKindOfClass:NSString.class]) {
         return NO;
     }

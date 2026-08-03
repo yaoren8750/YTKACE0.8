@@ -3,15 +3,15 @@
 
 #import <UIKit/UIKit.h>
 
-NSString * const YTKACEMasterEnabledKey = @"YTKACEEnabled";
-NSString * const YTKACEOLEDKey = @"kEnableOldDarkTheme";
-NSString * const YTKACENoAdsKey = @"kEnableNoAds";
-NSString * const YTKACESponsorBlockKey = @"sponsorBlock";
-NSString * const YTKACEDownloadKey = @"kEnableDownloadit";
-NSString * const YTKACEBackgroundPlaybackKey = @"kEnablePlayInBackgrounds";
-NSString * const YTKACEPiPKey = @"kEnableYTKPiP";
-NSString * const YTKACESpeedKey = @"kEnableisSpeed";
-NSString * const YTKACELoopKey = @"kEnableYTKLoop";
+NSString * const YTKACEMasterEnabledKey = @"YTKACE.Preference.Enabled";
+NSString * const YTKACEOLEDKey = @"YTKACE.Preference.Appearance.OLED";
+NSString * const YTKACENoAdsKey = @"YTKACE.Preference.Ads.Blocking";
+NSString * const YTKACESponsorBlockKey = @"YTKACE.Preference.SponsorBlock.Enabled";
+NSString * const YTKACEDownloadKey = @"YTKACE.Preference.Downloads.Enabled";
+NSString * const YTKACEBackgroundPlaybackKey = @"YTKACE.Preference.Playback.BackgroundAudio";
+NSString * const YTKACEPiPKey = @"YTKACE.Preference.Player.PiP";
+NSString * const YTKACESpeedKey = @"YTKACE.Preference.Player.SpeedControls";
+NSString * const YTKACELoopKey = @"YTKACE.Preference.Player.Loop";
 NSString * const YTKACEPreferencesDidChangeNotification =
     @"YTKACEPreferencesDidChangeNotification";
 
@@ -21,7 +21,7 @@ static NSUserDefaults *YTKACEDefaults(void) {
 
 static void YTKACEAnnouncePreferenceChange(NSString *key) {
     if (key.length == 0) return;
-    if ([key isEqualToString:@"kYTKACELanguage"]) {
+    if ([key isEqualToString:@"YTKACE.Preference.Language"]) {
         YTKACEResetLocalizationCache();
     }
     void (^post)(void) = ^{
@@ -38,37 +38,6 @@ static void YTKACEAnnouncePreferenceChange(NSString *key) {
 }
 
 void YTKACERegisterDefaults(void) {
-    NSDictionary<NSString *, NSString *> *aliases = @{
-        @"kEnableHideOverlayQuickAction": @"kEnableHideQuickActions",
-        @"kEnableShowOverlaySmart": @"kEnableAlwaysShowPlayPause",
-        @"kEnableShowMediaController": @"kEnableAlwaysShowControls",
-        @"kEnableHideDarkOverlayBackground": @"kEnableHideDarkOverlay",
-        @"kEnableDisablePreviousNextButton": @"kEnableDisablePreviousNext",
-        @"kEnablePreviousNextButtonPadding": @"kEnableCompactPreviousNext"
-    };
-    NSMutableDictionary *legacy =
-        [[YTKACEDefaults() dictionaryForKey:@"YTKPlus"] mutableCopy] ?:
-        [NSMutableDictionary dictionary];
-    for (NSString *key in aliases) {
-        if (legacy[key] != nil || [YTKACEDefaults() objectForKey:key] != nil) {
-            continue;
-        }
-        NSString *alias = aliases[key];
-        id value = legacy[alias] ?: [YTKACEDefaults() objectForKey:alias];
-        if (value != nil) {
-            legacy[key] = value;
-            [YTKACEDefaults() setObject:value forKey:key];
-        }
-    }
-    [YTKACEDefaults() setObject:legacy forKey:@"YTKPlus"];
-    if ([YTKACEDefaults() objectForKey:@"YTKACESponsorBehavior.sponsor"] == nil) {
-        id oldBehavior = legacy[@"sbSkipMode"] ?:
-            [YTKACEDefaults() objectForKey:@"sbSkipMode"];
-        if ([oldBehavior respondsToSelector:@selector(integerValue)]) {
-            [YTKACEDefaults() setObject:@([oldBehavior integerValue] == 1 ? 1 : 0)
-                                  forKey:@"YTKACESponsorBehavior.sponsor"];
-        }
-    }
     [YTKACEDefaults() registerDefaults:@{
         YTKACEMasterEnabledKey: @YES,
         YTKACENoAdsKey: @YES,
@@ -78,45 +47,45 @@ void YTKACERegisterDefaults(void) {
         YTKACEPiPKey: @NO,
         YTKACESpeedKey: @NO,
         YTKACELoopKey: @NO,
-        @"kEnableCustomDoubleTapToSkipDuration": @NO,
-        @"kEnableTapToSeek": @NO,
-        @"kEnableNativeShare": @NO,
-        @"kEnableHideShortsRemix": @NO,
-        @"kEnableHideShortsShare": @NO,
-        @"kEnableHideShortsComments": @NO,
-        @"kEnableHideShortsLike": @NO,
-        @"kEnableHideShortsAudioTrack": @NO,
-        @"kShortsDownloadButtonPosition": @0,
-        @"kEnableProfilePictureViewer": @YES,
-        @"kEnableRemoveLaunchAnimation": @NO,
-        @"kEnableCustomDoubleTapToSkipChnges": @10.0,
-        @"kSeekDuration": @10.0,
-        @"kVolumeSide": @2,
-        @"kBrightnessSide": @2,
-        @"kEnabledStartupPage": @0,
-        @"wiFiPlaybackIndex": @0,
-        @"celluarPlaybackIndex": @0,
-        @"sbSkipMode": @0,
-        @"YTKACESponsorSkipAlertDuration": @4.0,
-        @"YTKACESponsorUnskipAlertDuration": @4.0,
-        @"clearonstartup": @NO,
-        @"kHideCreate": @YES,
-        @"kHideMusic": @YES,
-        @"kHideLive": @YES,
-        @"kHideGaming": @YES,
-        @"kHideNews": @YES,
-        @"kHideSports": @YES,
-        @"kHideLearning": @YES,
-        @"kHideFashion": @YES,
-        @"kHidePlaylists": @YES,
-        @"kHideHistory": @YES,
-        @"kHideNotifs": @YES,
-        @"kHideWatchLater": @YES,
-        @"kTabOrder": @[@"home", @"shorts", @"subscriptions", @"library", @"ytkace"]
+        @"YTKACE.Preference.Playback.CustomDoubleTap": @NO,
+        @"YTKACE.Preference.Playback.TapToSeek": @NO,
+        @"YTKACE.Preference.Sharing.NativeSheet": @NO,
+        @"YTKACE.Preference.Shorts.RemixHidden": @NO,
+        @"YTKACE.Preference.Shorts.ShareHidden": @NO,
+        @"YTKACE.Preference.Shorts.CommentsHidden": @NO,
+        @"YTKACE.Preference.Shorts.LikeHidden": @NO,
+        @"YTKACE.Preference.Shorts.SoundHidden": @NO,
+        @"YTKACE.Preference.Shorts.DownloadPosition": @0,
+        @"YTKACE.Preference.Profiles.Preview": @YES,
+        @"YTKACE.Preference.Appearance.LaunchAnimationDisabled": @NO,
+        @"YTKACE.Preference.Playback.DoubleTapSeconds": @10.0,
+        @"YTKACE.Preference.Gestures.HoldSeekSeconds": @10.0,
+        @"YTKACE.Preference.Gestures.VolumeSide": @2,
+        @"YTKACE.Preference.Gestures.BrightnessSide": @2,
+        @"YTKACE.Preference.Tabs.Startup": @0,
+        @"YTKACE.Preference.Playback.WiFiQuality": @0,
+        @"YTKACE.Preference.Playback.CellularQuality": @0,
+        @"YTKACE.Preference.SponsorBlock.Mode": @0,
+        @"YTKACE.Preference.SponsorBlock.SkipAlertSeconds": @4.0,
+        @"YTKACE.Preference.SponsorBlock.UnskipAlertSeconds": @4.0,
+        @"YTKACE.Preference.Downloads.ClearOnStartup": @NO,
+        @"YTKACE.Preference.Tabs.Hidden.Create": @YES,
+        @"YTKACE.Preference.Tabs.Hidden.Music": @YES,
+        @"YTKACE.Preference.Tabs.Hidden.Live": @YES,
+        @"YTKACE.Preference.Tabs.Hidden.Gaming": @YES,
+        @"YTKACE.Preference.Tabs.Hidden.News": @YES,
+        @"YTKACE.Preference.Tabs.Hidden.Sports": @YES,
+        @"YTKACE.Preference.Tabs.Hidden.Learning": @YES,
+        @"YTKACE.Preference.Tabs.Hidden.Fashion": @YES,
+        @"YTKACE.Preference.Tabs.Hidden.Playlists": @YES,
+        @"YTKACE.Preference.Tabs.Hidden.History": @YES,
+        @"YTKACE.Preference.Tabs.Hidden.Notifs": @YES,
+        @"YTKACE.Preference.Tabs.Hidden.WatchLater": @YES,
+        @"YTKACE.Preference.Tabs.Order": @[@"home", @"shorts", @"subscriptions", @"library", @"ytkace"]
     }];
     [YTKACEDefaults() setBool:YES forKey:YTKACEMasterEnabledKey];
-    if ([YTKACEDefaults() boolForKey:@"clearonstartup"]) {
-        NSDate *lastClear = [YTKACEDefaults() objectForKey:@"YTKACELastCacheClearDate"];
+    if ([YTKACEDefaults() boolForKey:@"YTKACE.Preference.Downloads.ClearOnStartup"]) {
+        NSDate *lastClear = [YTKACEDefaults() objectForKey:@"YTKACE.Preference.Downloads.LastCacheClear"];
         if (![lastClear isKindOfClass:NSDate.class] ||
             -lastClear.timeIntervalSinceNow >= 86400.0) {
             NSURL *cache = [YTKACEApplicationSupportDirectory()
@@ -124,7 +93,7 @@ void YTKACERegisterDefaults(void) {
                                 isDirectory:YES];
             [NSFileManager.defaultManager removeItemAtURL:cache error:nil];
             [YTKACEDefaults() setObject:NSDate.date
-                                 forKey:@"YTKACELastCacheClearDate"];
+                                 forKey:@"YTKACE.Preference.Downloads.LastCacheClear"];
         }
     }
 }
@@ -136,11 +105,6 @@ BOOL YTKACEMasterEnabled(void) {
 BOOL YTKACEFeatureEnabled(NSString *key) {
     if (!YTKACEMasterEnabled() || key.length == 0) {
         return NO;
-    }
-    NSDictionary *legacy = [YTKACEDefaults() dictionaryForKey:@"YTKPlus"];
-    id legacyValue = legacy[key];
-    if ([legacyValue respondsToSelector:@selector(boolValue)]) {
-        return [legacyValue boolValue];
     }
     return [YTKACEDefaults() boolForKey:key];
 }
@@ -180,7 +144,7 @@ UIColor *YTKACEInterfaceBackgroundColor(UITraitCollection *traits) {
 
 UIColor *YTKACEInterfaceSurfaceColor(UITraitCollection *traits) {
     if (YTKACEOLEDActive(traits)) {
-        return [UIColor colorWithWhite:0.10 alpha:1.0];
+        return UIColor.blackColor;
     }
     UIUserInterfaceStyle style = traits.userInterfaceStyle;
     if (style == UIUserInterfaceStyleUnspecified) {
@@ -196,13 +160,6 @@ BOOL YTKACESponsorBlockEnabled(void) {
         return NO;
     }
 
-    NSDictionary *legacy = [YTKACEDefaults() dictionaryForKey:@"YTKPlus"];
-    NSNumber *nestedValue = [legacy[YTKACESponsorBlockKey] isKindOfClass:NSNumber.class]
-        ? legacy[YTKACESponsorBlockKey]
-        : nil;
-    if (nestedValue != nil) {
-        return nestedValue.boolValue;
-    }
     return [YTKACEDefaults() boolForKey:YTKACESponsorBlockKey];
 }
 
@@ -216,12 +173,6 @@ void YTKACESetPreference(NSString *key, BOOL enabled) {
         YTKACEAnnouncePreferenceChange(key);
         return;
     }
-    if (![key isEqualToString:YTKACEMasterEnabledKey]) {
-        NSMutableDictionary *legacy =
-            [[YTKACEDefaults() dictionaryForKey:@"YTKPlus"] mutableCopy] ?: [NSMutableDictionary dictionary];
-        legacy[key] = @(enabled);
-        [YTKACEDefaults() setObject:legacy forKey:@"YTKPlus"];
-    }
     [YTKACEDefaults() setBool:enabled forKey:key];
     YTKACEAnnouncePreferenceChange(key);
 }
@@ -230,25 +181,18 @@ id YTKACEPreferenceObject(NSString *key) {
     if (key.length == 0) {
         return nil;
     }
-    id legacyValue = [YTKACEDefaults() dictionaryForKey:@"YTKPlus"][key];
-    return legacyValue ?: [YTKACEDefaults() objectForKey:key];
+    return [YTKACEDefaults() objectForKey:key];
 }
 
 void YTKACESetPreferenceObject(NSString *key, id value) {
     if (key.length == 0) {
         return;
     }
-    NSMutableDictionary *legacy =
-        [[YTKACEDefaults() dictionaryForKey:@"YTKPlus"] mutableCopy] ?:
-        [NSMutableDictionary dictionary];
     if (value == nil) {
-        [legacy removeObjectForKey:key];
         [YTKACEDefaults() removeObjectForKey:key];
     } else {
-        legacy[key] = value;
         [YTKACEDefaults() setObject:value forKey:key];
     }
-    [YTKACEDefaults() setObject:legacy forKey:@"YTKPlus"];
     YTKACEAnnouncePreferenceChange(key);
 }
 

@@ -372,7 +372,7 @@ static CGSize YTKACENativePoints(UIImage *image) {
 
 - (void)avatarHeld:(UILongPressGestureRecognizer *)gesture {
     if (gesture.state != UIGestureRecognizerStateBegan ||
-        !YTKACEFeatureEnabled(@"kEnableProfilePictureViewer")) {
+        !YTKACEFeatureEnabled(@"YTKACE.Preference.Profiles.Preview")) {
         return;
     }
     UIWindow *window = [gesture.view isKindOfClass:UIWindow.class]
@@ -509,7 +509,7 @@ static const void *YTKACEAvatarViewGestureAssociation =
 
 - (void)avatarNodeHeld:(UILongPressGestureRecognizer *)gesture {
     if (gesture.state != UIGestureRecognizerStateBegan ||
-        !YTKACEFeatureEnabled(@"kEnableProfilePictureViewer")) {
+        !YTKACEFeatureEnabled(@"YTKACE.Preference.Profiles.Preview")) {
         return;
     }
     UIView *view = gesture.view;
@@ -526,7 +526,7 @@ static const void *YTKACEAvatarViewGestureAssociation =
 @end
 
 void YTKACEProfileConsiderDisplayView(UIView *view, id node) {
-    if (view == nil || !YTKACEFeatureEnabled(@"kEnableProfilePictureViewer")) return;
+    if (view == nil || !YTKACEFeatureEnabled(@"YTKACE.Preference.Profiles.Preview")) return;
     if (![[view description] containsString:@"ELMImageNode-View"]) return;
     if (node != nil) {
         objc_setAssociatedObject(view, YTKACEAvatarNodeAssociation, node,
